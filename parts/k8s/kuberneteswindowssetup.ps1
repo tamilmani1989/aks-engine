@@ -94,6 +94,7 @@ $global:PrimaryScaleSetName = "{{WrapAsVariable "primaryScaleSetName"}}"
 
 $global:KubeClusterCIDR = "{{WrapAsParameter "kubeClusterCidr"}}"
 $global:KubeServiceCIDR = "{{WrapAsParameter "kubeServiceCidr"}}"
+$global:IsDualStackEnabled = "{{WrapAsParameter "isDualStackEnabled"}}"
 $global:VNetCIDR = "{{WrapAsParameter "vnetCidr"}}"
 {{if IsKubernetesVersionGe "1.16.0"}}
 $global:KubeletNodeLabels = "{{GetAgentKubernetesLabels . "',variables('labelResourceGroup'),'"}}"
@@ -352,7 +353,8 @@ try
                 -MasterSubnet $global:MasterSubnet `
                 -KubeServiceCIDR $global:KubeServiceCIDR `
                 -VNetCIDR $global:VNetCIDR `
-                -TargetEnvironment $TargetEnvironment
+                -TargetEnvironment $TargetEnvironment `
+                -IsDualStackEnabled $IsDualStackEnabled
 
             if ($TargetEnvironment -ieq "AzureStackCloud") {
                 GenerateAzureStackCNIConfig `

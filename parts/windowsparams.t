@@ -35,6 +35,12 @@
       },
       "type": "string"
     },
+    "isDualStackEnabled": {
+      "metadata": {
+        "description": "To check if dual stack cluster"
+      },
+      "type": "string"
+    },
     "windowsTelemetryGUID": {
       "metadata": {
         "description": "The GUID to set in windows agent to collect telemetry data."

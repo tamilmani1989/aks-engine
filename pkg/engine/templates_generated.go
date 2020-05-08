@@ -41522,8 +41522,12 @@ Import-Module $global:HNSModule
 # and https://github.com/kubernetes/kubernetes/pull/78612 for <= 1.15
 Get-HnsPolicyList | Remove-HnsPolicyList
 
-.$KubeDir\kube-proxy.exe --v=3 --proxy-mode=kernelspace --hostname-override=$env:computername --kubeconfig=$KubeDir\config
-`)
+if (("--feature-gates=IPv6DualStack=true" | ? { $Global:ClusterConfiguration.Kubernetes.Kubelet.ConfigArgs -match $_ }) -ne $null) {
+    .$KubeDir\kube-proxy.exe --v=3 --proxy-mode=kernelspace --feature-gates=IPv6DualStack=true --hostname-override=$env:computername --kubeconfig=$KubeDir\config
+}
+else {
+    .$KubeDir\kube-proxy.exe --v=3 --proxy-mode=kernelspace --hostname-override=$env:computername --kubeconfig=$KubeDir\config
+}`)
 
 func k8sKubeproxystartPs1Bytes() ([]byte, error) {
 	return _k8sKubeproxystartPs1, nil
@@ -42474,6 +42478,7 @@ $global:PrimaryScaleSetName = "{{WrapAsVariable "primaryScaleSetName"}}"
 
 $global:KubeClusterCIDR = "{{WrapAsParameter "kubeClusterCidr"}}"
 $global:KubeServiceCIDR = "{{WrapAsParameter "kubeServiceCidr"}}"
+$global:IsDualStackEnabled = "{{WrapAsParameter "isDualStackEnabled"}}"
 $global:VNetCIDR = "{{WrapAsParameter "vnetCidr"}}"
 {{if IsKubernetesVersionGe "1.16.0"}}
 $global:KubeletNodeLabels = "{{GetAgentKubernetesLabels . "',variables('labelResourceGroup'),'"}}"
@@ -42732,7 +42737,8 @@ try
                 -MasterSubnet $global:MasterSubnet ` + "`" + `
                 -KubeServiceCIDR $global:KubeServiceCIDR ` + "`" + `
                 -VNetCIDR $global:VNetCIDR ` + "`" + `
-                -TargetEnvironment $TargetEnvironment
+                -TargetEnvironment $TargetEnvironment ` + "`" + `
+                -IsDualStackEnabled $IsDualStackEnabled
 
             if ($TargetEnvironment -ieq "AzureStackCloud") {
                 GenerateAzureStackCNIConfig ` + "`" + `
@@ -42786,7 +42792,7 @@ try
         Out-File "c:\k\kubeletstart.ps1"
         (Get-Content "c:\AzureData\k8s\kubeproxystart.ps1") |
         Out-File "c:\k\kubeproxystart.ps1"
-        
+
         if (Test-Path $CacheDir)
         {
             Write-Log "Removing aks-engine bits cache directory"
@@ -43204,10 +43210,19 @@ Set-AzureCNIConfig
         [Parameter(Mandatory=$true)][string]
         $VNetCIDR,
         [Parameter(Mandatory=$true)][string]
-        $TargetEnvironment
+        $TargetEnvironment,
+        [Parameter(Mandatory=$true)][string]
+        $IsDualStackEnabled
     )
+
     # Fill in DNS information for kubernetes.
-    $exceptionAddresses = @($KubeClusterCIDR, $MasterSubnet, $VNetCIDR)
+    if ($IsDualStackEnabled -eq "true"){
+        $subnetToPass = $KubeClusterCIDR -split ","
+        $exceptionAddresses = @($subnetToPass[0], $MasterSubnet, $VNetCIDR)
+    }
+    else {
+        $exceptionAddresses = @($KubeClusterCIDR, $MasterSubnet, $VNetCIDR)
+    }
 
     $fileName  = [Io.path]::Combine("$AzureCNIConfDir", "10-azure.conflist")
     $configJson = Get-Content $fileName | ConvertFrom-Json
@@ -43228,7 +43243,25 @@ Set-AzureCNIConfig
         $configJson.plugins.AdditionalArgs[0].Value.ExceptionList = $exceptionAddresses
     }
 
-    $configJson.plugins.AdditionalArgs[1].Value.DestinationPrefix  = $KubeServiceCIDR
+    if ($IsDualStackEnabled -eq "true"){
+        $configJson.plugins[0]|Add-Member -Name "ipv6Mode" -Value "ipv6nat" -MemberType NoteProperty
+        $serviceCidr = $KubeServiceCIDR -split ","
+        $configJson.plugins[0].AdditionalArgs[1].Value.DestinationPrefix = $serviceCidr[0]
+        $valueObj = [PSCustomObject]@{
+            Type = 'ROUTE'
+            DestinationPrefix = $serviceCidr[1]
+            NeedEncap = $True
+        }
+
+        $jsonContent = [PSCustomObject]@{
+            Name = 'EndpointPolicy'
+            Value = $valueObj
+        }
+        $configJson.plugins[0].AdditionalArgs += $jsonContent
+    }
+    else {
+        $configJson.plugins[0].AdditionalArgs[1].Value.DestinationPrefix = $KubeServiceCIDR
+    }
 
     if ($TargetEnvironment -ieq "AzureStackCloud") {
         Add-Member -InputObject $configJson.plugins[0].ipam -MemberType NoteProperty -Name "environment" -Value "mas"
@@ -43408,8 +43441,9 @@ function New-ExternalHnsNetwork {
     $stopWatch = New-Object System.Diagnostics.Stopwatch
     $stopWatch.Start()
     # Fixme : use a smallest range possible, that will not collide with any pod space
-    New-HNSNetwork -Type $global:NetworkMode -AddressPrefix "192.168.255.0/30" -Gateway "192.168.255.1" -AdapterName $adapterName -Name $externalNetwork -Verbose
+#    New-HNSNetwork -Type $global:NetworkMode -AddressPrefix "192.168.255.0/30" -Gateway "192.168.255.1" -AdapterName $adapterName -Name $externalNetwork -Verbose
 
+    New-HNSNetwork -Type $global:NetworkMode -AddressPrefix @("192.168.255.0/30","192:168:255::0/127") -Gateway @("192.168.255.1","192:168:255::1") -AdapterName $adapterName -Name $externalNetwork -Verbose
     # Wait for the switch to be created and the ip address to be assigned.
     for ($i = 0; $i -lt 60; $i++) {
         $mgmtIPAfterNetworkCreate = Get-NetIPAddress $managementIP -ErrorAction SilentlyContinue
@@ -47857,6 +47891,12 @@ var _windowsparamsT = []byte(` {{if IsKubernetes}}
     "kubeServiceCidr": {
       "metadata": {
         "description": "Kubernetes service address space"
+      },
+      "type": "string"
+    },
+    "isDualStackEnabled": {
+      "metadata": {
+        "description": "To check if dual stack cluster"
       },
       "type": "string"
     },
