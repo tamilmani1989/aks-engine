@@ -39513,7 +39513,7 @@ try
         Out-File "c:\k\kubeletstart.ps1"
         (Get-Content "c:\AzureData\k8s\kubeproxystart.ps1") |
         Out-File "c:\k\kubeproxystart.ps1"
-
+        
         if (Test-Path $CacheDir)
         {
             Write-Log "Removing aks-engine bits cache directory"
@@ -40162,8 +40162,6 @@ function New-ExternalHnsNetwork {
     $stopWatch = New-Object System.Diagnostics.Stopwatch
     $stopWatch.Start()
     # Fixme : use a smallest range possible, that will not collide with any pod space
-#    New-HNSNetwork -Type $global:NetworkMode -AddressPrefix "192.168.255.0/30" -Gateway "192.168.255.1" -AdapterName $adapterName -Name $externalNetwork -Verbose
-
     New-HNSNetwork -Type $global:NetworkMode -AddressPrefix @("192.168.255.0/30","192:168:255::0/127") -Gateway @("192.168.255.1","192:168:255::1") -AdapterName $adapterName -Name $externalNetwork -Verbose
     # Wait for the switch to be created and the ip address to be assigned.
     for ($i = 0; $i -lt 60; $i++) {
