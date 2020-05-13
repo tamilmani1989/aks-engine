@@ -4,6 +4,7 @@
 package api
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,51 +24,22 @@ func TestKubeletConfigDefaults(t *testing.T) {
 	winProfile.VMSize = "Standard_D2_v2"
 	winProfile.OSType = Windows
 	cs.Properties.AgentPoolProfiles = append(cs.Properties.AgentPoolProfiles, winProfile)
-	cs.setKubeletConfig(false)
-	k8sComponentsByVersionMap := GetK8sComponentsByVersionMap(&KubernetesConfig{KubernetesImageBaseType: common.KubernetesImageBaseTypeGCR})
-	kubeletConfig := cs.Properties.OrchestratorProfile.KubernetesConfig.KubeletConfig
-	expected := map[string]string{
-		"--address":                           "0.0.0.0",
-		"--allow-privileged":                  "true", // validate that we delete this key for >= 1.15 clusters
-		"--anonymous-auth":                    "false",
-		"--authorization-mode":                "Webhook",
-		"--azure-container-registry-config":   "/etc/kubernetes/azure.json",
-		"--cadvisor-port":                     "", // Validate that we delete this key for >= 1.12 clusters
-		"--cgroups-per-qos":                   "true",
-		"--client-ca-file":                    "/etc/kubernetes/certs/ca.crt",
-		"--cloud-provider":                    "azure",
-		"--cloud-config":                      "/etc/kubernetes/azure.json",
-		"--cluster-dns":                       DefaultKubernetesDNSServiceIP,
-		"--cluster-domain":                    "cluster.local",
-		"--enforce-node-allocatable":          "pods",
-		"--event-qps":                         DefaultKubeletEventQPS,
-		"--eviction-hard":                     DefaultKubernetesHardEvictionThreshold,
-		"--image-gc-high-threshold":           strconv.Itoa(DefaultKubernetesGCHighThreshold),
-		"--image-gc-low-threshold":            strconv.Itoa(DefaultKubernetesGCLowThreshold),
-		"--image-pull-progress-deadline":      "30m",
-		"--keep-terminated-pod-volumes":       "false",
-		"--kubeconfig":                        "/var/lib/kubelet/kubeconfig",
-		"--max-pods":                          strconv.Itoa(DefaultKubernetesMaxPods),
-		"--network-plugin":                    NetworkPluginKubenet,
-		"--node-status-update-frequency":      k8sComponentsByVersionMap[cs.Properties.OrchestratorProfile.OrchestratorVersion]["nodestatusfreq"],
-		"--non-masquerade-cidr":               DefaultNonMasqueradeCIDR,
-		"--pod-manifest-path":                 "/etc/kubernetes/manifests",
-		"--pod-infra-container-image":         cs.Properties.OrchestratorProfile.KubernetesConfig.MCRKubernetesImageBase + k8sComponentsByVersionMap[cs.Properties.OrchestratorProfile.OrchestratorVersion][common.PauseComponentName],
-		"--pod-max-pids":                      strconv.Itoa(DefaultKubeletPodMaxPIDs),
-		"--protect-kernel-defaults":           "true",
-		"--rotate-certificates":               "true",
-		"--streaming-connection-idle-timeout": "4h",
-		"--feature-gates":                     "RotateKubeletServerCertificate=true",
-		"--tls-cipher-suites":                 TLSStrongCipherSuitesKubelet,
-		"--tls-cert-file":                     "/etc/kubernetes/certs/kubeletserver.crt",
-		"--tls-private-key-file":              "/etc/kubernetes/certs/kubeletserver.key",
+	cs.Properties.OrchestratorProfile.KubernetesConfig.Addons = []KubernetesAddon{
+		{
+			Name:    common.AADPodIdentityAddonName,
+			Enabled: to.BoolPtr(true),
+		},
 	}
+	cs.setKubeletConfig(false)
+	kubeletConfig := cs.Properties.OrchestratorProfile.KubernetesConfig.KubeletConfig
+	expected := getDefaultLinuxKubeletConfig(cs)
 	for key, val := range kubeletConfig {
 		if expected[key] != val {
 			t.Fatalf("got unexpected kubelet config value for %s: %s, expected %s",
 				key, val, expected[key])
 		}
 	}
+	expected["--register-with-taints"] = common.MasterNodeTaint
 	masterKubeletConfig := cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
 	for key, val := range masterKubeletConfig {
 		if expected[key] != val {
@@ -75,6 +47,37 @@ func TestKubeletConfigDefaults(t *testing.T) {
 				key, val, expected[key])
 		}
 	}
+	cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig["--register-with-taints"] = "node-role.kubernetes.io/customtaint=true:NoSchedule"
+	cs.setKubeletConfig(false)
+	expected["--register-with-taints"] = fmt.Sprintf("node-role.kubernetes.io/customtaint=true:NoSchedule,%s", common.MasterNodeTaint)
+	masterKubeletConfig = cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
+	for key, val := range masterKubeletConfig {
+		if expected[key] != val {
+			t.Fatalf("got unexpected masterProfile kubelet config value for %s: %s, expected %s",
+				key, val, expected[key])
+		}
+	}
+	cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig["--register-with-taints"] = fmt.Sprintf("node-role.kubernetes.io/customtaint=true:NoSchedule,node-role.kubernetes.io/customtaint2=true:NoSchedule,%s", common.MasterNodeTaint)
+	cs.setKubeletConfig(false)
+	expected["--register-with-taints"] = fmt.Sprintf("node-role.kubernetes.io/customtaint=true:NoSchedule,node-role.kubernetes.io/customtaint2=true:NoSchedule,%s", common.MasterNodeTaint)
+	masterKubeletConfig = cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
+	for key, val := range masterKubeletConfig {
+		if expected[key] != val {
+			t.Fatalf("got unexpected masterProfile kubelet config value for %s: %s, expected %s",
+				key, val, expected[key])
+		}
+	}
+	cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig["--register-with-taints"] = fmt.Sprintf("%s,node-role.kubernetes.io/customtaint=true:NoSchedule,node-role.kubernetes.io/customtaint2=true:NoSchedule", common.MasterNodeTaint)
+	cs.setKubeletConfig(false)
+	expected["--register-with-taints"] = fmt.Sprintf("%s,node-role.kubernetes.io/customtaint=true:NoSchedule,node-role.kubernetes.io/customtaint2=true:NoSchedule", common.MasterNodeTaint)
+	masterKubeletConfig = cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
+	for key, val := range masterKubeletConfig {
+		if expected[key] != val {
+			t.Fatalf("got unexpected masterProfile kubelet config value for %s: %s, expected %s",
+				key, val, expected[key])
+		}
+	}
+	expected["--register-with-taints"] = fmt.Sprintf("%s=true:NoSchedule", common.AADPodIdentityTaintKey)
 	linuxProfileKubeletConfig := cs.Properties.AgentPoolProfiles[0].KubernetesConfig.KubeletConfig
 	for key, val := range linuxProfileKubeletConfig {
 		if expected[key] != val {
@@ -82,6 +85,27 @@ func TestKubeletConfigDefaults(t *testing.T) {
 				key, val, expected[key])
 		}
 	}
+	linuxProfileKubeletConfig["--register-with-taints"] = "node-role.kubernetes.io/customtaint=true:NoSchedule,node-role.kubernetes.io/customtaint2=true:NoSchedule"
+	cs.setKubeletConfig(false)
+	expected["--register-with-taints"] = fmt.Sprintf("node-role.kubernetes.io/customtaint=true:NoSchedule,node-role.kubernetes.io/customtaint2=true:NoSchedule,%s", fmt.Sprintf("%s=true:NoSchedule", common.AADPodIdentityTaintKey))
+	for key, val := range linuxProfileKubeletConfig {
+		if expected[key] != val {
+			t.Fatalf("got unexpected Linux agent profile kubelet config value for %s: %s, expected %s",
+				key, val, expected[key])
+		}
+	}
+	cs.Properties.OrchestratorProfile.KubernetesConfig.ContainerRuntime = Containerd
+	cs.setKubeletConfig(false)
+	expected["--container-runtime"] = "remote"
+	expected["--runtime-request-timeout"] = "15m"
+	expected["--container-runtime-endpoint"] = "unix:///run/containerd/containerd.sock"
+	for key, val := range linuxProfileKubeletConfig {
+		if expected[key] != val {
+			t.Fatalf("got unexpected Linux agent profile kubelet config value for %s: %s, expected %s",
+				key, val, expected[key])
+		}
+	}
+	delete(expected, "--register-with-taints")
 
 	windowsProfileKubeletConfig := cs.Properties.AgentPoolProfiles[1].KubernetesConfig.KubeletConfig
 	expected["--azure-container-registry-config"] = "c:\\k\\azure.json"
@@ -103,6 +127,27 @@ func TestKubeletConfigDefaults(t *testing.T) {
 	for key, val := range windowsProfileKubeletConfig {
 		if expected[key] != val {
 			t.Fatalf("got unexpected Windows agent profile kubelet config value for %s: %s, expected %s",
+				key, val, expected[key])
+		}
+	}
+	delete(expected, "--container-runtime")
+	delete(expected, "--runtime-request-timeout")
+	delete(expected, "--container-runtime-endpoint")
+
+	// validate aad-pod-identity disabled scenario
+	cs = CreateMockContainerService("testcluster", common.RationalizeReleaseAndVersion(Kubernetes, common.KubernetesDefaultRelease, "", false, false), 3, 2, false)
+	cs.Properties.OrchestratorProfile.KubernetesConfig.Addons = []KubernetesAddon{
+		{
+			Name:    common.AADPodIdentityAddonName,
+			Enabled: to.BoolPtr(false),
+		},
+	}
+	cs.setKubeletConfig(false)
+	linuxProfileKubeletConfig = cs.Properties.AgentPoolProfiles[0].KubernetesConfig.KubeletConfig
+	expected = getDefaultLinuxKubeletConfig(cs)
+	for key, val := range linuxProfileKubeletConfig {
+		if expected[key] != val {
+			t.Fatalf("got unexpected Linux agent profile kubelet config value for %s: %s, expected %s",
 				key, val, expected[key])
 		}
 	}
@@ -154,6 +199,48 @@ func TestKubeletConfigDefaults(t *testing.T) {
 	}
 }
 
+func getDefaultLinuxKubeletConfig(cs *ContainerService) map[string]string {
+	k8sComponentsByVersionMap := GetK8sComponentsByVersionMap(&KubernetesConfig{KubernetesImageBaseType: common.KubernetesImageBaseTypeGCR})
+	return map[string]string{
+		"--address":                           "0.0.0.0",
+		"--allow-privileged":                  "true", // validate that we delete this key for >= 1.15 clusters
+		"--anonymous-auth":                    "false",
+		"--authorization-mode":                "Webhook",
+		"--azure-container-registry-config":   "/etc/kubernetes/azure.json",
+		"--cadvisor-port":                     "", // Validate that we delete this key for >= 1.12 clusters
+		"--cgroups-per-qos":                   "true",
+		"--client-ca-file":                    "/etc/kubernetes/certs/ca.crt",
+		"--cloud-provider":                    "azure",
+		"--cloud-config":                      "/etc/kubernetes/azure.json",
+		"--cluster-dns":                       DefaultKubernetesDNSServiceIP,
+		"--cluster-domain":                    "cluster.local",
+		"--enforce-node-allocatable":          "pods",
+		"--event-qps":                         DefaultKubeletEventQPS,
+		"--eviction-hard":                     DefaultKubernetesHardEvictionThreshold,
+		"--image-gc-high-threshold":           strconv.Itoa(DefaultKubernetesGCHighThreshold),
+		"--image-gc-low-threshold":            strconv.Itoa(DefaultKubernetesGCLowThreshold),
+		"--image-pull-progress-deadline":      "30m",
+		"--keep-terminated-pod-volumes":       "false",
+		"--kubeconfig":                        "/var/lib/kubelet/kubeconfig",
+		"--max-pods":                          strconv.Itoa(DefaultKubernetesMaxPods),
+		"--network-plugin":                    NetworkPluginKubenet,
+		"--node-status-update-frequency":      k8sComponentsByVersionMap[cs.Properties.OrchestratorProfile.OrchestratorVersion]["nodestatusfreq"],
+		"--non-masquerade-cidr":               DefaultNonMasqueradeCIDR,
+		"--pod-manifest-path":                 "/etc/kubernetes/manifests",
+		"--pod-infra-container-image":         cs.Properties.OrchestratorProfile.KubernetesConfig.MCRKubernetesImageBase + k8sComponentsByVersionMap[cs.Properties.OrchestratorProfile.OrchestratorVersion][common.PauseComponentName],
+		"--pod-max-pids":                      strconv.Itoa(DefaultKubeletPodMaxPIDs),
+		"--protect-kernel-defaults":           "true",
+		"--rotate-certificates":               "true",
+		"--streaming-connection-idle-timeout": "4h",
+		"--feature-gates":                     "RotateKubeletServerCertificate=true",
+		"--tls-cipher-suites":                 TLSStrongCipherSuitesKubelet,
+		"--tls-cert-file":                     "/etc/kubernetes/certs/kubeletserver.crt",
+		"--tls-private-key-file":              "/etc/kubernetes/certs/kubeletserver.key",
+		"--v":                                 "2",
+		"--volume-plugin-dir":                 "/etc/kubernetes/volumeplugins",
+	}
+}
+
 func TestKubeletConfigAzureStackDefaults(t *testing.T) {
 	cs := CreateMockContainerService("testcluster", common.RationalizeReleaseAndVersion(Kubernetes, common.KubernetesDefaultRelease, "", false, false), 3, 2, false)
 	cs.Properties.CustomCloudProfile = &CustomCloudProfile{}
@@ -201,6 +288,9 @@ func TestKubeletConfigAzureStackDefaults(t *testing.T) {
 		"--tls-cipher-suites":                 TLSStrongCipherSuitesKubelet,
 		"--tls-cert-file":                     "/etc/kubernetes/certs/kubeletserver.crt",
 		"--tls-private-key-file":              "/etc/kubernetes/certs/kubeletserver.key",
+		"--register-with-taints":              common.MasterNodeTaint,
+		"--v":                                 "2",
+		"--volume-plugin-dir":                 "/etc/kubernetes/volumeplugins",
 	}
 	for key, val := range kubeletConfig {
 		if expected[key] != val {
@@ -700,11 +790,14 @@ func TestEnforceNodeAllocatable(t *testing.T) {
 func TestProtectKernelDefaults(t *testing.T) {
 	// Validate default
 	cs := CreateMockContainerService("testcluster", "1.12.7", 3, 2, false)
-	cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	km := cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
 	if km["--protect-kernel-defaults"] != "true" {
 		t.Fatalf("got unexpected '--protect-kernel-defaults' kubelet config value %s, the expected value is %s",
@@ -723,11 +816,14 @@ func TestProtectKernelDefaults(t *testing.T) {
 			cs = CreateMockContainerService("testcluster", "1.10.13", 3, 2, false)
 			cs.Properties.MasterProfile.Distro = distro
 			cs.Properties.AgentPoolProfiles[0].Distro = distro
-			cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+			_, err = cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 				IsScale:    false,
 				IsUpgrade:  false,
 				PkiKeySize: helpers.DefaultPkiKeySize,
 			})
+			if err != nil {
+				t.Error(err)
+			}
 			km = cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
 			if km["--protect-kernel-defaults"] != "true" {
 				t.Fatalf("got unexpected '--protect-kernel-defaults' kubelet config value %s, the expected value is %s",
@@ -744,11 +840,14 @@ func TestProtectKernelDefaults(t *testing.T) {
 			cs = CreateMockContainerService("testcluster", "1.10.13", 3, 2, false)
 			cs.Properties.MasterProfile.Distro = distro
 			cs.Properties.AgentPoolProfiles[0].Distro = distro
-			cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+			_, err = cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 				IsScale:    false,
 				IsUpgrade:  false,
 				PkiKeySize: helpers.DefaultPkiKeySize,
 			})
+			if err != nil {
+				t.Error(err)
+			}
 			km = cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
 			if _, ok := km["--protect-kernel-defaults"]; ok {
 				t.Fatalf("got unexpected '--protect-kernel-defaults' kubelet config value %s",
@@ -766,11 +865,14 @@ func TestProtectKernelDefaults(t *testing.T) {
 	cs = CreateMockContainerService("testcluster", "1.10.13", 3, 2, false)
 	cs.Properties.MasterProfile.Distro = AKSUbuntu1604
 	cs.Properties.AgentPoolProfiles[0].OSType = Windows
-	cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	km = cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
 	if km["--protect-kernel-defaults"] != "true" {
 		t.Fatalf("got unexpected '--protect-kernel-defaults' kubelet config value %s, the expected value is %s",
@@ -794,11 +896,14 @@ func TestProtectKernelDefaults(t *testing.T) {
 					"--protect-kernel-defaults": "false",
 				},
 			}
-			cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+			_, err = cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 				IsScale:    false,
 				IsUpgrade:  false,
 				PkiKeySize: helpers.DefaultPkiKeySize,
 			})
+			if err != nil {
+				t.Error(err)
+			}
 			km = cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
 			if km["--protect-kernel-defaults"] != "false" {
 				t.Fatalf("got unexpected '--protect-kernel-defaults' kubelet config value %s, the expected value is %s",
@@ -864,6 +969,9 @@ func TestStaticWindowsConfig(t *testing.T) {
 				}
 			}
 		}
+	}
+	if _, ok := cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig["--register-with-taints"]; ok {
+		t.Fatalf("got unexpected --register-with-taints kubelet config with no Linux node pools")
 	}
 }
 

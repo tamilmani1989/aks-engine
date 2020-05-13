@@ -164,7 +164,7 @@ type WindowsProfile struct {
 	AdminPassword          string            `json:"adminPassword,omitempty"`
 	CSIProxyURL            string            `json:"csiProxyURL,omitempty"`
 	EnableCSIProxy         *bool             `json:"enableCSIProxy,omitempty"`
-	ImageRef               *ImageReference   `json:"imageReference,omiteempty"`
+	ImageRef               *ImageReference   `json:"imageReference,omitempty"`
 	ImageVersion           string            `json:"imageVersion,omitempty"`
 	WindowsImageSourceURL  string            `json:"WindowsImageSourceUrl"`
 	WindowsPublisher       string            `json:"WindowsPublisher"`
@@ -172,7 +172,7 @@ type WindowsProfile struct {
 	WindowsSku             string            `json:"WindowsSku"`
 	WindowsDockerVersion   string            `json:"windowsDockerVersion"`
 	Secrets                []KeyVaultSecrets `json:"secrets,omitempty"`
-	SSHEnabled             bool              `json:"sshEnabled,omitempty"`
+	SSHEnabled             *bool             `json:"sshEnabled,omitempty"`
 	EnableAutomaticUpdates *bool             `json:"enableAutomaticUpdates,omitempty"`
 }
 
@@ -348,12 +348,14 @@ type KubernetesConfig struct {
 	EnablePodSecurityPolicy           *bool                 `json:"enablePodSecurityPolicy,omitempty"`
 	Addons                            []KubernetesAddon     `json:"addons,omitempty"`
 	Components                        []KubernetesComponent `json:"components,omitempty"`
+	ContainerRuntimeConfig            map[string]string     `json:"containerRuntimeConfig,omitempty"`
 	KubeletConfig                     map[string]string     `json:"kubeletConfig,omitempty"`
 	ControllerManagerConfig           map[string]string     `json:"controllerManagerConfig,omitempty"`
 	CloudControllerManagerConfig      map[string]string     `json:"cloudControllerManagerConfig,omitempty"`
 	APIServerConfig                   map[string]string     `json:"apiServerConfig,omitempty"`
 	SchedulerConfig                   map[string]string     `json:"schedulerConfig,omitempty"`
 	PodSecurityPolicyConfig           map[string]string     `json:"podSecurityPolicyConfig,omitempty"` // Deprecated
+	KubeReservedCgroup                string                `json:"kubeReservedCgroup,omitempty"`
 	CloudProviderBackoffMode          string                `json:"cloudProviderBackoffMode"`
 	CloudProviderBackoff              *bool                 `json:"cloudProviderBackoff,omitempty"`
 	CloudProviderBackoffRetries       int                   `json:"cloudProviderBackoffRetries,omitempty"`
@@ -433,7 +435,7 @@ type MasterProfile struct {
 	AgentSubnet               string            `json:"agentSubnet,omitempty"`
 	AvailabilityZones         []string          `json:"availabilityZones,omitempty"`
 	SinglePlacementGroup      *bool             `json:"singlePlacementGroup,omitempty"`
-	PlatformFaultDomainCount  *int              `json:"platformFaultDomainCount,omitEmpty"`
+	PlatformFaultDomainCount  *int              `json:"platformFaultDomainCount,omitempty"`
 	PlatformUpdateDomainCount *int              `json:"platformUpdateDomainCount"`
 	AuditDEnabled             *bool             `json:"auditDEnabled,omitempty"`
 	CustomVMTags              map[string]string `json:"customVMTags,omitempty"`
@@ -454,6 +456,7 @@ type MasterProfile struct {
 	// True: uses cosmos etcd endpoint instead of installing etcd on masters
 	CosmosEtcd                *bool  `json:"cosmosEtcd,omitempty"`
 	ProximityPlacementGroupID string `json:"proximityPlacementGroupID,omitempty"`
+	OSDiskCachingType         string `json:"osDiskCachingType,omitempty"`
 }
 
 // ImageReference represents a reference to an Image resource in Azure.
@@ -521,13 +524,15 @@ type AgentPoolProfile struct {
 	PreProvisionExtension             *Extension        `json:"preProvisionExtension"`
 	Extensions                        []Extension       `json:"extensions"`
 	SinglePlacementGroup              *bool             `json:"singlePlacementGroup,omitempty"`
-	PlatformFaultDomainCount          *int              `json:"platformFaultDomainCount,omitEmpty"`
+	PlatformFaultDomainCount          *int              `json:"platformFaultDomainCount,omitempty"`
 	PlatformUpdateDomainCount         *int              `json:"platformUpdateDomainCount"`
 	AvailabilityZones                 []string          `json:"availabilityZones,omitempty"`
 	EnableVMSSNodePublicIP            *bool             `json:"enableVMSSNodePublicIP,omitempty"`
 	LoadBalancerBackendAddressPoolIDs []string          `json:"loadBalancerBackendAddressPoolIDs,omitempty"`
 	SysctlDConfig                     map[string]string `json:"sysctldConfig,omitempty"`
 	ProximityPlacementGroupID         string            `json:"proximityPlacementGroupID,omitempty"`
+	OSDiskCachingType                 string            `json:"osDiskCachingType,omitempty"`
+	DataDiskCachingType               string            `json:"dataDiskCachingType,omitempty"`
 }
 
 // AgentPoolProfileRole represents an agent role

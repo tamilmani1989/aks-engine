@@ -311,7 +311,7 @@ var _ = Describe("Azure Container Cluster using the Kubernetes Orchestrator", fu
 					dockerVersionCmd := fmt.Sprintf("\"docker version\"")
 					for _, n := range nodes {
 						if n.IsWindows() {
-							if eng.ExpandedDefinition.Properties.WindowsProfile != nil && !eng.ExpandedDefinition.Properties.WindowsProfile.SSHEnabled {
+							if eng.ExpandedDefinition.Properties.WindowsProfile != nil && !eng.ExpandedDefinition.Properties.WindowsProfile.GetSSHEnabled() {
 								log.Printf("Can't ssh into Windows node %s because there is no SSH listener", n.Metadata.Name)
 								continue
 							}
@@ -647,9 +647,18 @@ var _ = Describe("Azure Container Cluster using the Kubernetes Orchestrator", fu
 			}
 			if hasAddon, _ := eng.HasAddon(common.AzureDiskCSIDriverAddonName); hasAddon {
 				coreComponents = append(coreComponents, "csi-azuredisk-controller", "csi-azuredisk-node")
+				if eng.HasWindowsAgents() {
+					coreComponents = append(coreComponents, "csi-azuredisk-node-windows")
+				}
+				if eng.AnyAgentIsLinux() && common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.17.0") {
+					coreComponents = append(coreComponents, "csi-snapshot-controller")
+				}
 			}
 			if hasAddon, _ := eng.HasAddon(common.AzureFileCSIDriverAddonName); hasAddon {
 				coreComponents = append(coreComponents, "csi-azurefile-controller", "csi-azurefile-node")
+				if eng.HasWindowsAgents() {
+					coreComponents = append(coreComponents, "csi-azurefile-node-windows")
+				}
 			}
 			if hasAddon, _ := eng.HasAddon(common.CloudNodeManagerAddonName); hasAddon {
 				coreComponents = append(coreComponents, common.CloudNodeManagerAddonName)
@@ -903,6 +912,9 @@ var _ = Describe("Azure Container Cluster using the Kubernetes Orchestrator", fu
 					addonPods = []string{"omsagent"}
 				case "azure-npm-daemonset":
 					addonPods = []string{"azure-npm"}
+				case "kubernetes-dashboard":
+					addonPods = []string{"kubernetes-dashboard", "dashboard-metrics-scraper"}
+					addonNamespace = "kubernetes-dashboard"
 				}
 				if hasAddon, addon := eng.HasAddon(addonName); hasAddon {
 					for _, addonPod := range addonPods {
@@ -915,6 +927,9 @@ var _ = Describe("Azure Container Cluster using the Kubernetes Orchestrator", fu
 						Expect(err).NotTo(HaveOccurred())
 						for i, c := range addon.Containers {
 							pod := pods[0]
+							if len(pod.Spec.Containers) == i {
+								break
+							}
 							container := pod.Spec.Containers[i]
 							err := container.ValidateResources(c)
 							Expect(err).NotTo(HaveOccurred())
@@ -1011,38 +1026,43 @@ var _ = Describe("Azure Container Cluster using the Kubernetes Orchestrator", fu
 			} else {
 				if hasDashboard, _ := eng.HasAddon("kubernetes-dashboard"); hasDashboard {
 					By("Ensuring that the kubernetes-dashboard service is Running")
-					s, err := service.Get("kubernetes-dashboard", "kube-system")
+					s, err := service.Get("kubernetes-dashboard", "kubernetes-dashboard")
 					Expect(err).NotTo(HaveOccurred())
-					By("Ensuring that we can connect via HTTPS to the dashboard on any one node")
-					dashboardPort := 443
-					port := s.GetNodePort(dashboardPort)
-					nodes, err := node.GetReadyWithRetry(1*time.Second, cfg.Timeout)
+					Expect(s).NotTo(BeNil())
+					By("Ensuring that the dashboard responds to requests")
+					// start `kubectl proxy` in the background on a random port
+					var proxyStdout io.ReadCloser
+					var proxyStdoutReader *bufio.Reader
+					proxyCmd := exec.Command("k", "proxy", "-p", "0")
+					proxyCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+					proxyStdout, err = proxyCmd.StdoutPipe()
 					Expect(err).NotTo(HaveOccurred())
-					var success bool
-					for _, n := range nodes {
-						if success {
-							break
+					util.PrintCommand(proxyCmd)
+					err = proxyCmd.Start()
+					Expect(err).NotTo(HaveOccurred())
+					defer func() {
+						syscall.Kill(-proxyCmd.Process.Pid, syscall.SIGKILL)
+						if _, waiterr := proxyCmd.Process.Wait(); waiterr != nil {
+							log.Printf("kubectl proxy - wait returned err: %v\n", waiterr)
 						}
-						if n.IsLinux() {
-							// Allow 3 retries for each node
-							for i := 0; i < 3; i++ {
-								address := n.Status.GetAddressByType("InternalIP")
-								if address == nil {
-									log.Printf("One of our nodes does not have an InternalIP value!: %s\n", n.Metadata.Name)
-								}
-								Expect(address).NotTo(BeNil())
-								dashboardURL := fmt.Sprintf("http://%s:%v", address.Address, port)
-								curlCMD := fmt.Sprintf("curl --max-time 60 %s", dashboardURL)
-								err := sshConn.Execute(curlCMD, false)
-								if err == nil {
-									success = true
-									break
-								}
-								time.Sleep(1 * time.Second)
-							}
-						}
-					}
-					Expect(success).To(BeTrue())
+					}()
+					proxyStdoutReader = bufio.NewReader(proxyStdout)
+					proxyOutStr, outErr := proxyStdoutReader.ReadString('\n')
+					Expect(outErr).NotTo(HaveOccurred())
+					log.Printf("kubectl proxy stdout: %s\n", proxyOutStr)
+					serverStartPrefix := "Starting to serve on "
+					Expect(proxyOutStr).To(HavePrefix(serverStartPrefix))
+					dashboardHost := strings.TrimSpace(strings.TrimPrefix(proxyOutStr, serverStartPrefix))
+					// get an HTTP response from the dashboard login URL
+					url := fmt.Sprintf("http://%s/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/login", dashboardHost)
+					cmd := exec.Command("curl", "--max-time", "60", "--retry", "10", "--retry-delay", "10", "--retry-max-time", "120", url)
+					util.PrintCommand(cmd)
+					var out []byte
+					out, err = cmd.CombinedOutput()
+					log.Printf("%s\n", out)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(out).To(ContainSubstring("<!doctype html>"))
+					Expect(out).To(ContainSubstring("<title>Kubernetes Dashboard</title>"))
 				} else {
 					Skip("kubernetes-dashboard disabled for this cluster, will not test")
 				}
@@ -1053,20 +1073,28 @@ var _ = Describe("Azure Container Cluster using the Kubernetes Orchestrator", fu
 			if util.IsUsingEphemeralDisks(eng.ExpandedDefinition.Properties.AgentPoolProfiles) {
 				Skip("no storage class is deployed when ephemeral disk is used, will not test")
 			}
-			var azureDiskProvisioner, azureFileProvisioner string
-			isUsingCSIDrivers := to.Bool(eng.ExpandedDefinition.Properties.OrchestratorProfile.KubernetesConfig.UseCloudControllerManager) &&
-				common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.13.0")
-			if isUsingCSIDrivers {
+			var (
+				isUsingAzureDiskCSIDriver bool
+				isUsingAzureFileCSIDriver bool
+				azureDiskProvisioner      string
+				azureFileProvisioner      string
+			)
+
+			if isUsingAzureDiskCSIDriver, _ = eng.HasAddon(common.AzureDiskCSIDriverAddonName); isUsingAzureDiskCSIDriver {
 				azureDiskProvisioner = "disk.csi.azure.com"
-				azureFileProvisioner = "file.csi.azure.com"
 			} else {
 				azureDiskProvisioner = "kubernetes.io/azure-disk"
+			}
+
+			if isUsingAzureFileCSIDriver, _ = eng.HasAddon(common.AzureFileCSIDriverAddonName); isUsingAzureFileCSIDriver {
+				azureFileProvisioner = "file.csi.azure.com"
+			} else {
 				azureFileProvisioner = "kubernetes.io/azure-file"
 			}
 
 			azureDiskStorageClasses := []string{"default"}
-			// CSI driver uses managed disk by default
-			if isUsingCSIDrivers || util.IsUsingManagedDisks(eng.ExpandedDefinition.Properties.AgentPoolProfiles) {
+			// Managed disk is used by default when useCloudControllerManager is enabled
+			if to.Bool(eng.ExpandedDefinition.Properties.OrchestratorProfile.KubernetesConfig.UseCloudControllerManager) || util.IsUsingManagedDisks(eng.ExpandedDefinition.Properties.AgentPoolProfiles) {
 				azureDiskStorageClasses = append(azureDiskStorageClasses, "managed-premium", "managed-standard")
 			} else {
 				azureDiskStorageClasses = append(azureDiskStorageClasses, "unmanaged-premium", "unmanaged-standard")
@@ -1075,7 +1103,7 @@ var _ = Describe("Azure Container Cluster using the Kubernetes Orchestrator", fu
 				sc, err := storageclass.Get(azureDiskStorageClass)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(sc.Provisioner).To(Equal(azureDiskProvisioner))
-				if isUsingCSIDrivers && eng.ExpandedDefinition.Properties.HasAvailabilityZones() {
+				if isUsingAzureDiskCSIDriver && eng.ExpandedDefinition.Properties.HasAvailabilityZones() {
 					Expect(sc.VolumeBindingMode).To(Equal("WaitForFirstConsumer"))
 					Expect(len(sc.AllowedTopologies)).To(Equal(1))
 					Expect(len(sc.AllowedTopologies[0].MatchLabelExpressions)).To(Equal(1))
@@ -1086,7 +1114,7 @@ var _ = Describe("Azure Container Cluster using the Kubernetes Orchestrator", fu
 				} else {
 					Expect(sc.VolumeBindingMode).To(Equal("Immediate"))
 				}
-				if isUsingCSIDrivers && common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.16.0") {
+				if isUsingAzureDiskCSIDriver && common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.16.0") {
 					Expect(sc.AllowVolumeExpansion).To(BeTrue())
 				}
 			}
@@ -1096,6 +1124,9 @@ var _ = Describe("Azure Container Cluster using the Kubernetes Orchestrator", fu
 				Expect(err).NotTo(HaveOccurred())
 				Expect(sc.Provisioner).To(Equal(azureFileProvisioner))
 				Expect(sc.VolumeBindingMode).To(Equal("Immediate"))
+				if isUsingAzureFileCSIDriver && common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.16.0") {
+					Expect(sc.AllowVolumeExpansion).To(BeTrue())
+				}
 			}
 		})
 
@@ -1202,13 +1233,72 @@ var _ = Describe("Azure Container Cluster using the Kubernetes Orchestrator", fu
 				}
 			}
 		})
+
+		It("should have the correct pods and containers deployed for CSI drivers", func() {
+			addons := map[string]string{
+				common.AzureDiskCSIDriverAddonName: "azuredisk",
+				common.AzureFileCSIDriverAddonName: "azurefile",
+			}
+			for addonName, shortenedAddonName := range addons {
+				if hasAddon, _ := eng.HasAddon(addonName); !hasAddon {
+					continue
+				}
+
+				// Validate CSI controller pod
+				addonPod := fmt.Sprintf("csi-%s-controller", shortenedAddonName)
+				containers := []string{"csi-provisioner", "csi-attacher", "liveness-probe", shortenedAddonName}
+				if common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.16.0") {
+					containers = append(containers, "csi-resizer")
+				}
+				if eng.AnyAgentIsLinux() {
+					switch addonName {
+					case common.AzureDiskCSIDriverAddonName:
+						if common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.17.0") {
+							containers = append(containers, "csi-snapshotter")
+						}
+					case common.AzureFileCSIDriverAddonName:
+						if common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.13.0") &&
+							!common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.17.0") {
+							containers = append(containers, "csi-snapshotter")
+						}
+					}
+				}
+				By(fmt.Sprintf("Ensuring that %s are running within %s pod", containers, addonPod))
+				Expect(pod.EnsureContainersRunningInAllPods(containers, addonPod, "kube-system", kubeSystemPodsReadinessChecks, sleepBetweenRetriesWhenWaitingForPodReady, cfg.Timeout)).NotTo(HaveOccurred())
+
+				// Validate CSI node pod
+				addonPod = fmt.Sprintf("csi-%s-node", shortenedAddonName)
+				containers = []string{"liveness-probe", "node-driver-registrar", shortenedAddonName}
+				By(fmt.Sprintf("Ensuring that %s are running within %s pod", containers, addonPod))
+				Expect(pod.EnsureContainersRunningInAllPods(containers, addonPod, "kube-system", kubeSystemPodsReadinessChecks, sleepBetweenRetriesWhenWaitingForPodReady, cfg.Timeout)).NotTo(HaveOccurred())
+
+				// Validate CSI node windows pod
+				if eng.HasWindowsAgents() && common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.18.0") {
+					addonPod = fmt.Sprintf("csi-%s-node-windows", shortenedAddonName)
+					containers = []string{"liveness-probe", "node-driver-registrar", shortenedAddonName}
+					By(fmt.Sprintf("Ensuring that %s are running within %s pod", containers, addonPod))
+					Expect(pod.EnsureContainersRunningInAllPods(containers, addonPod, "kube-system", kubeSystemPodsReadinessChecks, sleepBetweenRetriesWhenWaitingForPodReady, cfg.Timeout)).NotTo(HaveOccurred())
+				}
+
+				// Validate CSI snapshot controller pod
+				switch addonName {
+				case common.AzureDiskCSIDriverAddonName:
+					if eng.AnyAgentIsLinux() && common.IsKubernetesVersionGe(eng.ExpandedDefinition.Properties.OrchestratorProfile.OrchestratorVersion, "1.17.0") {
+						addonPod = "csi-snapshot-controller"
+						containers = []string{"csi-snapshot-controller"}
+						By(fmt.Sprintf("Ensuring that %s are running within %s pod", containers, addonPod))
+						Expect(pod.EnsureContainersRunningInAllPods(containers, addonPod, "kube-system", kubeSystemPodsReadinessChecks, sleepBetweenRetriesWhenWaitingForPodReady, cfg.Timeout)).NotTo(HaveOccurred())
+					}
+				}
+			}
+		})
 	})
 
 	Describe("with a windows agent pool", func() {
 		It("kubelet service should be able to recover when the docker service is stopped", func() {
 			if !eng.ExpandedDefinition.Properties.HasNonRegularPriorityScaleset() {
 				if eng.HasWindowsAgents() {
-					if eng.ExpandedDefinition.Properties.WindowsProfile != nil && eng.ExpandedDefinition.Properties.WindowsProfile.SSHEnabled {
+					if eng.ExpandedDefinition.Properties.WindowsProfile != nil && eng.ExpandedDefinition.Properties.WindowsProfile.GetSSHEnabled() {
 						nodes, err := node.GetReadyWithRetry(1*time.Second, cfg.Timeout)
 						Expect(err).NotTo(HaveOccurred())
 						simulateDockerdCrashScript := "simulate-dockerd-crash.cmd"

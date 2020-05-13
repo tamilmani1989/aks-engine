@@ -374,7 +374,7 @@ func getDCOSWindowsAgentCustomAttributes(profile *api.AgentPoolProfile) string {
 	if len(profile.OSType) > 0 {
 		attrstring = fmt.Sprintf("os:%s", profile.OSType)
 	} else {
-		attrstring = fmt.Sprintf("os:windows")
+		attrstring = "os:windows"
 	}
 	if len(profile.Ports) > 0 {
 		attrstring += ";public_ip:yes"
@@ -630,7 +630,7 @@ func getBase64EncodedGzippedCustomScript(csFilename string, cs *api.ContainerSer
 		panic(fmt.Sprintf("BUG: %s", err.Error()))
 	}
 	var buffer bytes.Buffer
-	templ.Execute(&buffer, cs)
+	_ = templ.Execute(&buffer, cs)
 	csStr := buffer.String()
 	csStr = strings.Replace(csStr, "\r\n", "\n", -1)
 	return getBase64EncodedGzippedCustomScriptFromStr(csStr)
@@ -645,7 +645,7 @@ func getStringFromBase64(str string) (string, error) {
 func getBase64EncodedGzippedCustomScriptFromStr(str string) string {
 	var gzipB bytes.Buffer
 	w := gzip.NewWriter(&gzipB)
-	w.Write([]byte(str))
+	_, _ = w.Write([]byte(str))
 	w.Close()
 	return base64.StdEncoding.EncodeToString(gzipB.Bytes())
 }
@@ -749,6 +749,9 @@ func getAddonFuncMap(addon api.KubernetesAddon, cs *api.ContainerService) templa
 		"IsCustomCloudProfile": func() bool {
 			return cs.Properties.IsCustomCloudProfile()
 		},
+		"HasLinux": func() bool {
+			return cs.Properties.AnyAgentIsLinux()
+		},
 		"IsAzureStackCloud": func() bool {
 			return cs.Properties.IsAzureStackCloud()
 		},
@@ -774,6 +777,39 @@ func getAddonFuncMap(addon api.KubernetesAddon, cs *api.ContainerService) templa
 				zones += fmt.Sprintf("\n    - %s-%s", cs.Location, zone)
 			}
 			return zones
+		},
+		"CSIControllerReplicas": func() string {
+			replicas := "2"
+			if cs.Properties.HasWindows() && !cs.Properties.AnyAgentIsLinux() {
+				replicas = "1"
+			}
+			return replicas
+		},
+		"ShouldEnableCSISnapshotFeature": func(csiDriverName string) bool {
+			// Snapshot is not available for Windows clusters
+			if cs.Properties.HasWindows() && !cs.Properties.AnyAgentIsLinux() {
+				return false
+			}
+
+			switch csiDriverName {
+			case common.AzureDiskCSIDriverAddonName:
+				// Snapshot feature for Azure Disk CSI Driver is in beta, requiring K8s 1.17+
+				return common.IsKubernetesVersionGe(cs.Properties.OrchestratorProfile.OrchestratorVersion, "1.17.0")
+			case common.AzureFileCSIDriverAddonName:
+				// Snapshot feature for Azure File CSI Driver is in alpha, requiring K8s 1.13-1.16
+				return common.IsKubernetesVersionGe(cs.Properties.OrchestratorProfile.OrchestratorVersion, "1.13.0") &&
+					!common.IsKubernetesVersionGe(cs.Properties.OrchestratorProfile.OrchestratorVersion, "1.17.0")
+			}
+			return false
+		},
+		"IsKubernetesVersionGe": func(version string) bool {
+			return common.IsKubernetesVersionGe(cs.Properties.OrchestratorProfile.OrchestratorVersion, version)
+		},
+		"GetAADPodIdentityTaintKey": func() string {
+			return common.AADPodIdentityTaintKey
+		},
+		"GetMode": func() string {
+			return addon.Mode
 		},
 	}
 }
@@ -818,19 +854,19 @@ func getClusterAutoscalerAddonFuncMap(addon api.KubernetesAddon, cs *api.Contain
 		},
 		"GetVolumeMounts": func() string {
 			if cs.Properties.OrchestratorProfile.KubernetesConfig.UseManagedIdentity {
-				return fmt.Sprintf("\n        - mountPath: /var/lib/waagent/\n          name: waagent\n          readOnly: true")
+				return "\n        - mountPath: /var/lib/waagent/\n          name: waagent\n          readOnly: true"
 			}
 			return ""
 		},
 		"GetVolumes": func() string {
 			if cs.Properties.OrchestratorProfile.KubernetesConfig.UseManagedIdentity {
-				return fmt.Sprintf("\n      - hostPath:\n          path: /var/lib/waagent/\n        name: waagent")
+				return "\n      - hostPath:\n          path: /var/lib/waagent/\n        name: waagent"
 			}
 			return ""
 		},
 		"GetHostNetwork": func() string {
 			if cs.Properties.OrchestratorProfile.KubernetesConfig.UseManagedIdentity {
-				return fmt.Sprintf("\n      hostNetwork: true")
+				return "\n      hostNetwork: true"
 			}
 			return ""
 		},
@@ -843,6 +879,9 @@ func getClusterAutoscalerAddonFuncMap(addon api.KubernetesAddon, cs *api.Contain
 				return "true"
 			}
 			return "false"
+		},
+		"IsKubernetesVersionGe": func(version string) bool {
+			return common.IsKubernetesVersionGe(cs.Properties.OrchestratorProfile.OrchestratorVersion, version)
 		},
 	}
 }
@@ -884,7 +923,7 @@ func getComponentsString(cs *api.ContainerService, sourcePath string) string {
 					return ""
 				}
 				var buffer bytes.Buffer
-				templ.Execute(&buffer, component)
+				_ = templ.Execute(&buffer, component)
 				input = buffer.String()
 			}
 			if componentName == common.ClusterInitComponentName {
@@ -941,7 +980,7 @@ func getAddonsString(cs *api.ContainerService, sourcePath string) string {
 					return ""
 				}
 				var buffer bytes.Buffer
-				templ.Execute(&buffer, addon)
+				_ = templ.Execute(&buffer, addon)
 				input = buffer.String()
 			}
 			result += getComponentString(input, "/etc/kubernetes/addons", setting.destinationFile)
@@ -1217,7 +1256,7 @@ func getSSHPublicKeysPowerShell(linuxProfile *api.LinuxProfile) string {
 
 func getWindowsMasterSubnetARMParam(masterProfile *api.MasterProfile) string {
 	if masterProfile != nil && masterProfile.IsCustomVNET() {
-		return fmt.Sprintf("',parameters('vnetCidr'),'")
+		return "',parameters('vnetCidr'),'"
 	}
-	return fmt.Sprintf("',parameters('masterSubnet'),'")
+	return "',parameters('masterSubnet'),'"
 }

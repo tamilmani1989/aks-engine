@@ -28,7 +28,7 @@ This template will deploy the [Kubernetes Datastore backed version of Calico](ht
 
 If deploying on a K8s 1.8 or later cluster, then egress policies are also supported!
 
-To understand how to deploy this template, please read the baseline [Kubernetes](../../docs/tutorials/deploy.md) document, and use the appropriate **kubernetes-calico-[azure|kubenet].json** example file in this folder as an api model reference.
+To understand how to deploy this template, please read the baseline [Kubernetes](../../docs/tutorials/deploy.md) document, and use the appropriate **kubernetes-calico-[azure|kubenet].json** example file in this folder as an API model reference.
 
 ### Post installation
 
@@ -99,11 +99,27 @@ Once the template has been successfully deployed, following the [deploy the demo
 
 For the latest documentation on Cilium (including BPF and XDP reference guides), please refer to [this](http://cilium.readthedocs.io/en/latest/)
 
+
 ## Antrea
 
-The kubernetes-antrea deployment template enables Antrea networking and policies for the AKS Engine cluster via `"networkPolicy": "antrea"` or `"networkPlugin": "antrea"` being present inside the `kubernetesConfig`.
+The kubernetes-antrea deployment template enables Antrea networking and policies for the AKS Engine cluster via `"networkPolicy": "antrea"` and `"networkPlugin": "antrea"` being present inside the `kubernetesConfig`.
+
 
 ```json
+  "properties": {
+    "orchestratorProfile": {
+      "orchestratorType": "Kubernetes",
+      "kubernetesConfig": {
+        "networkPolicy": "antrea",
+        "networkPlugin": "antrea"
+      }
+```
+
+Antrea also supports `NetworkPolicyOnly` mode with Azure CNI. In this mode, Antrea will enforce Network Policies using OVS and Azure CNI will take care of Networking. The kubernetes-antrea deployment template enables Azure Networking and Antrea Network Policies for the AKS Engine via `"networkPolicy": "antrea"` and optional `"networkPlugin": "azure"` being present inside the `kubernetesConfig`. For more details regarding Antrea NetworkPolicyOnly mode, please refer to [this](https://github.com/vmware-tanzu/antrea/blob/master/docs/policy-only.md).
+
+
+```json
+  "apiVersion": "vlabs",
   "properties": {
     "orchestratorProfile": {
       "orchestratorType": "Kubernetes",

@@ -15,6 +15,7 @@ import (
 
 	"github.com/Azure/aks-engine/pkg/api/common"
 	"github.com/Azure/aks-engine/pkg/helpers"
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-12-01/compute"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/blang/semver"
 	"github.com/google/uuid"
@@ -38,6 +39,7 @@ var (
 		"3.2.13", "3.2.14", "3.2.15", "3.2.16", "3.2.23", "3.2.24", "3.2.25", "3.2.26", "3.3.0", "3.3.1", "3.3.8", "3.3.9", "3.3.10", "3.3.13", "3.3.15", "3.3.18", "3.3.19"}
 	containerdValidVersions              = [...]string{"1.3.2"}
 	kubernetesImageBaseTypeValidVersions = [...]string{"", common.KubernetesImageBaseTypeGCR, common.KubernetesImageBaseTypeMCR}
+	cachingTypesValidValues              = [...]string{"", string(compute.CachingTypesNone), string(compute.CachingTypesReadWrite), string(compute.CachingTypesReadOnly)}
 	networkPluginPlusPolicyAllowed       = []k8sNetworkConfig{
 		{
 			networkPlugin: "",
@@ -81,6 +83,10 @@ var (
 		},
 		{
 			networkPlugin: NetworkPluginAntrea,
+			networkPolicy: NetworkPolicyAntrea,
+		},
+		{
+			networkPlugin: "azure",
 			networkPolicy: NetworkPolicyAntrea,
 		},
 		{
@@ -167,7 +173,7 @@ func (a *Properties) validate(isUpdate bool) error {
 		return e
 	}
 
-	if e := a.validateWindowsProfile(); e != nil {
+	if e := a.validateWindowsProfile(isUpdate); e != nil {
 		return e
 	}
 	return nil
@@ -296,7 +302,7 @@ func (a *Properties) ValidateOrchestratorProfile(isUpdate bool) error {
 				}
 
 				if o.KubernetesConfig.LoadBalancerSku != "" {
-					if strings.ToLower(o.KubernetesConfig.LoadBalancerSku) != strings.ToLower(StandardLoadBalancerSku) && strings.ToLower(o.KubernetesConfig.LoadBalancerSku) != strings.ToLower(BasicLoadBalancerSku) {
+					if !strings.EqualFold(o.KubernetesConfig.LoadBalancerSku, StandardLoadBalancerSku) && !strings.EqualFold(o.KubernetesConfig.LoadBalancerSku, BasicLoadBalancerSku) {
 						return errors.Errorf("Invalid value for loadBalancerSku, only %s and %s are supported", StandardLoadBalancerSku, BasicLoadBalancerSku)
 					}
 				}
@@ -452,6 +458,16 @@ func (a *Properties) validateMasterProfile(isUpdate bool) error {
 		}
 	}
 
+	var validOSDiskCachingType bool
+	for _, valid := range cachingTypesValidValues {
+		if valid == m.OSDiskCachingType {
+			validOSDiskCachingType = true
+		}
+	}
+	if !validOSDiskCachingType {
+		return errors.Errorf("Invalid masterProfile osDiskCachingType value \"%s\", please use one of the following versions: %s", m.OSDiskCachingType, cachingTypesValidValues)
+	}
+
 	return common.ValidateDNSPrefix(m.DNSPrefix)
 }
 
@@ -575,6 +591,26 @@ func (a *Properties) validateAgentPoolProfiles(isUpdate bool) error {
 		if e := validateProximityPlacementGroupID(agentPoolProfile.ProximityPlacementGroupID); e != nil {
 			return e
 		}
+		var validOSDiskCachingType, validDataDiskCachingType bool
+		for _, valid := range cachingTypesValidValues {
+			if valid == agentPoolProfile.OSDiskCachingType {
+				validOSDiskCachingType = true
+			}
+			if valid == agentPoolProfile.DataDiskCachingType {
+				validDataDiskCachingType = true
+			}
+		}
+		if !validOSDiskCachingType {
+			return errors.Errorf("Invalid osDiskCachingType value \"%s\" for agentPoolProfile \"%s\", please use one of the following versions: %s", agentPoolProfile.OSDiskCachingType, agentPoolProfile.Name, cachingTypesValidValues)
+		}
+		if !validDataDiskCachingType {
+			return errors.Errorf("Invalid dataDiskCachingType value \"%s\" for agentPoolProfile \"%s\", please use one of the following versions: %s", agentPoolProfile.DataDiskCachingType, agentPoolProfile.Name, cachingTypesValidValues)
+		}
+		if agentPoolProfile.IsEphemeral() {
+			if agentPoolProfile.OSDiskCachingType != "" && agentPoolProfile.OSDiskCachingType != string(compute.CachingTypesReadOnly) {
+				return errors.Errorf("Invalid osDiskCachingType value \"%s\" for agentPoolProfile \"%s\" using Ephemeral Disk, you must use: %s", agentPoolProfile.OSDiskCachingType, agentPoolProfile.Name, string(compute.CachingTypesReadOnly))
+			}
+		}
 	}
 
 	return nil
@@ -620,7 +656,7 @@ func (a *Properties) validateZones() error {
 						return errors.New("Availability Zones are not supported with an AvailabilitySet. Please either remove availabilityProfile or set availabilityProfile to VirtualMachineScaleSets")
 					}
 				}
-				if a.OrchestratorProfile.KubernetesConfig != nil && a.OrchestratorProfile.KubernetesConfig.LoadBalancerSku != "" && strings.ToLower(a.OrchestratorProfile.KubernetesConfig.LoadBalancerSku) != strings.ToLower(StandardLoadBalancerSku) {
+				if a.OrchestratorProfile.KubernetesConfig != nil && a.OrchestratorProfile.KubernetesConfig.LoadBalancerSku != "" && !strings.EqualFold(a.OrchestratorProfile.KubernetesConfig.LoadBalancerSku, StandardLoadBalancerSku) {
 					return errors.New("Availability Zones requires Standard LoadBalancer. Please set KubernetesConfig \"LoadBalancerSku\" to \"Standard\"")
 				}
 			}
@@ -1110,7 +1146,7 @@ func validateVMSS(o *OrchestratorProfile, isUpdate bool, storageProfile string) 
 	return nil
 }
 
-func (a *Properties) validateWindowsProfile() error {
+func (a *Properties) validateWindowsProfile(isUpdate bool) error {
 	hasWindowsAgentPools := false
 	for _, profile := range a.AgentPoolProfiles {
 		if profile.OSType == Windows {
@@ -1137,7 +1173,7 @@ func (a *Properties) validateWindowsProfile() error {
 			o.OrchestratorType,
 			o.OrchestratorRelease,
 			o.OrchestratorVersion,
-			false,
+			isUpdate,
 			true)
 
 		if version == "" {
@@ -1171,23 +1207,8 @@ func (a *Properties) validateWindowsProfile() error {
 }
 
 func validateCsiProxyWindowsProperties(w *WindowsProfile, k8sVersion string) error {
-	if w.IsCSIProxyEnabled() {
-		k8sSemVer, err := semver.Make(k8sVersion)
-		if err != nil {
-			return errors.Errorf("could not validate orchestrator version %s", k8sVersion)
-		}
-		minSemVer, err := semver.Make("1.18.0-beta.1")
-		if err != nil {
-			return errors.New("could not validate orchestrator version 1.18.0")
-		}
-
-		if k8sSemVer.LT(minSemVer) {
-			return errors.New("CSI proxy for Windows is only available in Kubernetes versions 1.18.0 or greater")
-		}
-
-		if len(w.CSIProxyURL) == 0 {
-			return errors.New("windowsProfile.csiProxyURL must be specified if enableCSIProxy is set")
-		}
+	if w.IsCSIProxyEnabled() && !common.IsKubernetesVersionGe(k8sVersion, "1.18.0") {
+		return errors.New("CSI proxy for Windows is only available in Kubernetes versions 1.18.0 or greater")
 	}
 	return nil
 }
@@ -1582,6 +1603,32 @@ func (k *KubernetesConfig) Validate(k8sVersion string, hasWindows, ipv6DualStack
 	if e := k.validateKubernetesImageBaseType(); e != nil {
 		return e
 	}
+	return k.validateContainerRuntimeConfig()
+}
+
+func (k *KubernetesConfig) validateContainerRuntimeConfig() error {
+	if val, ok := k.ContainerRuntimeConfig[common.ContainerDataDirKey]; ok {
+		if val == "" {
+			return errors.Errorf("OrchestratorProfile.KubernetesConfig.ContainerRuntimeConfig.DataDir '%s' is invalid: must not be empty", val)
+		}
+		if !strings.HasPrefix(val, "/") {
+			return errors.Errorf("OrchestratorProfile.KubernetesConfig.ContainerRuntimeConfig.DataDir '%s' is invalid: must be absolute path", val)
+		}
+	}
+
+	// Validate base config here, and only allow predefined mutations to ensure invariant.
+	if k.ContainerRuntime == Containerd {
+		_, err := common.GetContainerdConfig(k.ContainerRuntimeConfig, nil)
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err := common.GetDockerConfig(k.ContainerRuntimeConfig, nil)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -1917,6 +1964,9 @@ func (cs *ContainerService) Validate(isUpdate bool) error {
 func (cs *ContainerService) validateLocation() error {
 	if cs.Properties != nil && cs.Properties.IsCustomCloudProfile() && cs.Location == "" {
 		return errors.New("missing ContainerService Location")
+	}
+	if cs.Location == "" {
+		log.Warnf("No \"location\" value was specified, AKS Engine will generate an ARM template configuration valid for regions in public cloud only")
 	}
 	return nil
 }

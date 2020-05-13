@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-12-01/compute"
 	"github.com/Azure/go-autorest/autorest/azure"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/google/go-cmp/cmp"
@@ -238,7 +239,7 @@ func TestAssignDefaultAddonImages(t *testing.T) {
 		common.BlobfuseFlexVolumeAddonName:     k8sComponents[common.BlobfuseFlexVolumeAddonName],
 		common.SMBFlexVolumeAddonName:          k8sComponents[common.SMBFlexVolumeAddonName],
 		common.KeyVaultFlexVolumeAddonName:     k8sComponents[common.KeyVaultFlexVolumeAddonName],
-		common.DashboardAddonName:              specConfig.MCRKubernetesImageBase + k8sComponents[common.DashboardAddonName],
+		common.DashboardAddonName:              k8sComponents[common.DashboardAddonName],
 		common.ReschedulerAddonName:            specConfig.MCRKubernetesImageBase + k8sComponents[common.ReschedulerAddonName],
 		common.MetricsServerAddonName:          specConfig.MCRKubernetesImageBase + k8sComponents[common.MetricsServerAddonName],
 		common.NVIDIADevicePluginAddonName:     specConfig.NVIDIAImageBase + k8sComponents[common.NVIDIADevicePluginAddonName],
@@ -525,11 +526,14 @@ func TestAcceleratedNetworking(t *testing.T) {
 	mockCS.Properties.AgentPoolProfiles[0].AcceleratedNetworkingEnabled = nil
 	mockCS.Properties.AgentPoolProfiles[0].AcceleratedNetworkingEnabledWindows = nil
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  true,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	// In upgrade scenario, nil AcceleratedNetworkingEnabled should always render as false (i.e., we never turn on this feature on an existing vm that didn't have it before)
 	if to.Bool(mockCS.Properties.AgentPoolProfiles[0].AcceleratedNetworkingEnabled) {
@@ -545,11 +549,14 @@ func TestAcceleratedNetworking(t *testing.T) {
 	mockCS.Properties.AgentPoolProfiles[0].AcceleratedNetworkingEnabled = nil
 	mockCS.Properties.AgentPoolProfiles[0].AcceleratedNetworkingEnabledWindows = nil
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    true,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	// In scale scenario, nil AcceleratedNetworkingEnabled should always render as false (i.e., we never turn on this feature on an existing agent pool / VMSS that didn't have it before)
 	if to.Bool(mockCS.Properties.AgentPoolProfiles[0].AcceleratedNetworkingEnabled) {
@@ -567,11 +574,14 @@ func TestAcceleratedNetworking(t *testing.T) {
 	mockCS.Properties.AgentPoolProfiles[0].AcceleratedNetworkingEnabledWindows = nil
 	mockCS.Properties.AgentPoolProfiles[0].VMSize = "Standard_D2_v2"
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	// In create scenario, nil AcceleratedNetworkingEnabled should be the defaults
 	acceleratedNetworkingEnabled := DefaultAcceleratedNetworking
@@ -591,11 +601,14 @@ func TestAcceleratedNetworking(t *testing.T) {
 	mockCS.Properties.AgentPoolProfiles[0].AcceleratedNetworkingEnabledWindows = nil
 	mockCS.Properties.AgentPoolProfiles[0].VMSize = "Standard_D666_v2"
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	// In non-supported VM SKU scenario, acceleratedNetworkingEnabled should always be false
 	if to.Bool(mockCS.Properties.AgentPoolProfiles[0].AcceleratedNetworkingEnabled) {
@@ -612,11 +625,14 @@ func TestVMSSOverProvisioning(t *testing.T) {
 	mockCS.Properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	mockCS.Properties.AgentPoolProfiles[0].AvailabilityProfile = VirtualMachineScaleSets
 	mockCS.Properties.AgentPoolProfiles[0].VMSSOverProvisioningEnabled = nil
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  true,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	// In upgrade scenario, nil AcceleratedNetworkingEnabled should always render as false (i.e., we never turn on this feature on an existing vm that didn't have it before)
 	if to.Bool(mockCS.Properties.AgentPoolProfiles[0].VMSSOverProvisioningEnabled) {
@@ -627,11 +643,14 @@ func TestVMSSOverProvisioning(t *testing.T) {
 	mockCS.Properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	mockCS.Properties.AgentPoolProfiles[0].AvailabilityProfile = VirtualMachineScaleSets
 	mockCS.Properties.AgentPoolProfiles[0].VMSSOverProvisioningEnabled = nil
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    true,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	// In scale scenario, nil VMSSOverProvisioningEnabled should always render as false (i.e., we never turn on this feature on an existing agent pool / VMSS that didn't have it before)
 	if to.Bool(mockCS.Properties.AgentPoolProfiles[0].VMSSOverProvisioningEnabled) {
@@ -642,11 +661,14 @@ func TestVMSSOverProvisioning(t *testing.T) {
 	mockCS.Properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	mockCS.Properties.AgentPoolProfiles[0].AvailabilityProfile = VirtualMachineScaleSets
 	mockCS.Properties.AgentPoolProfiles[0].VMSSOverProvisioningEnabled = nil
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	// In create scenario, nil VMSSOverProvisioningEnabled should be the defaults
 	vmssOverProvisioningEnabled := DefaultVMSSOverProvisioningEnabled
@@ -658,11 +680,14 @@ func TestVMSSOverProvisioning(t *testing.T) {
 	mockCS.Properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	mockCS.Properties.AgentPoolProfiles[0].AvailabilityProfile = VirtualMachineScaleSets
 	mockCS.Properties.AgentPoolProfiles[0].VMSSOverProvisioningEnabled = to.BoolPtr(true)
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	// In create scenario with explicit true, VMSSOverProvisioningEnabled should be true
 	if !to.Bool(mockCS.Properties.AgentPoolProfiles[0].VMSSOverProvisioningEnabled) {
@@ -673,11 +698,14 @@ func TestVMSSOverProvisioning(t *testing.T) {
 	mockCS.Properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	mockCS.Properties.AgentPoolProfiles[0].AvailabilityProfile = VirtualMachineScaleSets
 	mockCS.Properties.AgentPoolProfiles[0].VMSSOverProvisioningEnabled = to.BoolPtr(false)
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	// In create scenario with explicit false, VMSSOverProvisioningEnabled should be false
 	if to.Bool(mockCS.Properties.AgentPoolProfiles[0].VMSSOverProvisioningEnabled) {
@@ -734,6 +762,29 @@ func TestAuditDEnabled(t *testing.T) {
 	// In create scenario with explicit false, AuditDEnabled should be false
 	if to.Bool(mockCS.Properties.AgentPoolProfiles[0].AuditDEnabled) {
 		t.Errorf("expected AuditDEnabled to be false, instead got %t", to.Bool(mockCS.Properties.AgentPoolProfiles[0].AuditDEnabled))
+	}
+}
+
+func TestDiskCachingTypes(t *testing.T) {
+	mockCS := getMockBaseContainerService("1.18.2")
+	mockCS.Properties.OrchestratorProfile.OrchestratorType = Kubernetes
+	isUpgrade := false
+	isScale := false
+	mockCS.Properties.setAgentProfileDefaults(isUpgrade, isScale)
+
+	if mockCS.Properties.AgentPoolProfiles[0].OSDiskCachingType != string(compute.CachingTypesReadWrite) {
+		t.Errorf("expected OSDiskCachingType to be %s by default, instead got %s", string(compute.CachingTypesReadWrite), mockCS.Properties.AgentPoolProfiles[0].OSDiskCachingType)
+	}
+	if mockCS.Properties.AgentPoolProfiles[0].DataDiskCachingType != string(compute.CachingTypesReadOnly) {
+		t.Errorf("expected OSDiskCachingType to be %s by default, instead got %s", string(compute.CachingTypesReadOnly), mockCS.Properties.AgentPoolProfiles[0].OSDiskCachingType)
+	}
+
+	mockCS = getMockBaseContainerService("1.18.2")
+	mockCS.Properties.OrchestratorProfile.OrchestratorType = Kubernetes
+	mockCS.Properties.AgentPoolProfiles[0].StorageProfile = Ephemeral
+	mockCS.Properties.setAgentProfileDefaults(isUpgrade, isScale)
+	if mockCS.Properties.AgentPoolProfiles[0].OSDiskCachingType != string(compute.CachingTypesReadOnly) {
+		t.Errorf("expected OSDiskCachingType to be %s by default, instead got %s", string(compute.CachingTypesReadOnly), mockCS.Properties.AgentPoolProfiles[0].OSDiskCachingType)
 	}
 }
 
@@ -880,9 +931,9 @@ func TestNetworkPolicyDefaults(t *testing.T) {
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.OrchestratorProfile.KubernetesConfig.NetworkPolicy = NetworkPolicyAntrea
 	mockCS.setOrchestratorDefaults(true, true)
-	if properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin != NetworkPluginAntrea {
+	if properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin != NetworkPluginAzure {
 		t.Fatalf("NetworkPlugin did not have the expected value, got %s, expected %s",
-			properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin, NetworkPluginAntrea)
+			properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin, NetworkPluginAzure)
 	}
 
 	mockCS = getMockBaseContainerService("1.8.10")
@@ -1321,11 +1372,15 @@ func TestStorageProfile(t *testing.T) {
 		Enabled:        to.BoolPtr(true),
 		JumpboxProfile: &PrivateJumpboxProfile{},
 	}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
+
 	if properties.MasterProfile.StorageProfile != ManagedDisks {
 		t.Fatalf("MasterProfile.StorageProfile did not have the expected configuration, got %s, expected %s",
 			properties.MasterProfile.StorageProfile, ManagedDisks)
@@ -1354,11 +1409,15 @@ func TestStorageProfile(t *testing.T) {
 	mockCS = getMockBaseContainerService("1.13.12")
 	properties = mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
+
 	if !properties.AgentPoolProfiles[0].IsVirtualMachineScaleSets() {
 		t.Fatalf("AgentPoolProfile[0].AvailabilityProfile did not have the expected configuration, got %s, expected %s",
 			properties.AgentPoolProfiles[0].AvailabilityProfile, VirtualMachineScaleSets)
@@ -1377,11 +1436,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.MasterProfile.AvailabilityProfile = ""
 	properties.MasterProfile.Count = 3
 	mockCS.Properties = properties
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.MasterProfile.IsVirtualMachineScaleSets() {
 		t.Fatalf("Master VMAS, AzureCNI: MasterProfile AvailabilityProfile did not have the expected default configuration, got %s, expected %s",
 			properties.MasterProfile.AvailabilityProfile, AvailabilitySet)
@@ -1402,6 +1464,10 @@ func TestMasterProfileDefaults(t *testing.T) {
 		t.Fatalf("Master VMAS, AzureCNI: MasterProfile FirstConsecutiveStaticIP did not have the expected default configuration, got %s, expected %s",
 			properties.MasterProfile.FirstConsecutiveStaticIP, "10.255.255.5")
 	}
+	if properties.MasterProfile.OSDiskCachingType != string(compute.CachingTypesReadWrite) {
+		t.Fatalf("MasterProfile.OSDiskCachingType did not have the expected default configuration, got %s, expected %s",
+			properties.MasterProfile.OSDiskCachingType, string(compute.CachingTypesReadWrite))
+	}
 
 	// this validates default VMSS masterProfile configuration
 	mockCS = getMockBaseContainerService("1.13.12")
@@ -1410,11 +1476,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin = NetworkPluginAzure
 	properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet = ""
 	properties.MasterProfile.AvailabilityProfile = VirtualMachineScaleSets
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  true,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if !properties.MasterProfile.IsVirtualMachineScaleSets() {
 		t.Fatalf("Master VMSS, AzureCNI: MasterProfile AvailabilityProfile did not have the expected default configuration, got %s, expected %s",
 			properties.MasterProfile.AvailabilityProfile, VirtualMachineScaleSets)
@@ -1443,11 +1512,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet = ""
 	properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin = NetworkPluginKubenet
 	properties.MasterProfile.AvailabilityProfile = VirtualMachineScaleSets
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    true,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != DefaultKubernetesClusterSubnet {
 		t.Fatalf("Master VMSS, kubenet: MasterProfile ClusterSubnet did not have the expected default configuration, got %s, expected %s",
 			properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet, DefaultKubernetesClusterSubnet)
@@ -1465,11 +1537,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 			properties.MasterProfile.AgentSubnet, DefaultKubernetesAgentSubnetVMSS)
 	}
 	properties.MasterProfile.AvailabilityProfile = AvailabilitySet
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    true,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.MasterProfile.FirstConsecutiveStaticIP != DefaultFirstConsecutiveKubernetesStaticIP {
 		t.Fatalf("Master VMAS, kubenet: MasterProfile FirstConsecutiveStaticIP did not have the expected default configuration, got %s, expected %s",
 			properties.MasterProfile.FirstConsecutiveStaticIP, DefaultFirstConsecutiveKubernetesStaticIP)
@@ -1485,11 +1560,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet = ""
 	properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin = NetworkPluginAzure
 	properties.MasterProfile.AvailabilityProfile = AvailabilitySet
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    true,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 
 	if properties.MasterProfile.FirstConsecutiveStaticIP != "10.239.255.239" {
 		t.Fatalf("Master VMAS, AzureCNI, customvnet: MasterProfile FirstConsecutiveStaticIP did not have the expected default configuration, got %s, expected %s",
@@ -1505,11 +1583,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet = ""
 	properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin = NetworkPluginAzure
 	properties.MasterProfile.AvailabilityProfile = VirtualMachineScaleSets
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    true,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.MasterProfile.FirstConsecutiveStaticIP != "10.239.0.4" {
 		t.Fatalf("Master VMSS, AzureCNI, customvnet: MasterProfile FirstConsecutiveStaticIP did not have the expected default configuration, got %s, expected %s",
 			properties.MasterProfile.FirstConsecutiveStaticIP, "10.239.0.4")
@@ -1520,11 +1601,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties = mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.OrchestratorProfile.KubernetesConfig.LoadBalancerSku = StandardLoadBalancerSku
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	excludeMaster := DefaultExcludeMasterFromStandardLB
 	if *properties.OrchestratorProfile.KubernetesConfig.ExcludeMasterFromStandardLB != excludeMaster {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ExcludeMasterFromStandardLB did not have the expected configuration, got %t, expected %t",
@@ -1535,11 +1619,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	mockCS = getMockBaseContainerService("1.13.12")
 	properties = mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.OrchestratorProfile.KubernetesConfig.MaximumLoadBalancerRuleCount != DefaultMaximumLoadBalancerRuleCount {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.MaximumLoadBalancerRuleCount did not have the expected configuration, got %d, expected %d",
 			properties.OrchestratorProfile.KubernetesConfig.MaximumLoadBalancerRuleCount, DefaultMaximumLoadBalancerRuleCount)
@@ -1550,11 +1637,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties = mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6DualStack: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	expectedClusterSubnet := strings.Join([]string{DefaultKubernetesClusterSubnet, "fc00::/8"}, ",")
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != expectedClusterSubnet {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ClusterSubnet did not have the expected configuration, got %s, expected %s",
@@ -1566,11 +1656,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties = mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6DualStack: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	expectedClusterSubnet = strings.Join([]string{DefaultKubernetesClusterSubnet, "fc00::/8"}, ",")
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != expectedClusterSubnet {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ClusterSubnet did not have the expected configuration, got %s, expected %s",
@@ -1582,11 +1675,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties = mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6DualStack: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	expectedClusterSubnet = strings.Join([]string{DefaultKubernetesClusterSubnet, DefaultKubernetesClusterSubnetIPv6}, ",")
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != expectedClusterSubnet {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ClusterSubnet did not have the expected configuration, got %s, expected %s",
@@ -1599,11 +1695,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet = "10.244.0.0/16"
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6DualStack: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	expectedClusterSubnet = strings.Join([]string{"10.244.0.0/16", DefaultKubernetesClusterSubnetIPv6}, ",")
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != expectedClusterSubnet {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ClusterSubnet did not have the expected configuration, got %s, expected %s",
@@ -1616,11 +1715,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet = "ace:cab:deca::/8"
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6DualStack: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	expectedClusterSubnet = strings.Join([]string{DefaultKubernetesClusterSubnet, "ace:cab:deca::/8"}, ",")
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != expectedClusterSubnet {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ClusterSubnet did not have the expected configuration, got %s, expected %s",
@@ -1633,11 +1735,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin = "azure"
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6DualStack: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	expectedClusterSubnet = strings.Join([]string{DefaultKubernetesSubnet, "fc00::/8"}, ",")
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != expectedClusterSubnet {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ClusterSubnet did not have the expected configuration, got %s, expected %s",
@@ -1651,11 +1756,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin = "azure"
 	properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet = "10.240.1.0/24"
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6DualStack: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	expectedClusterSubnet = strings.Join([]string{"10.240.1.0/24", "fc00::/8"}, ",")
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != expectedClusterSubnet {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ClusterSubnet did not have the expected configuration, got %s, expected %s",
@@ -1669,11 +1777,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin = "azure"
 	properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet = "ace:cab:deca::/8"
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6DualStack: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	expectedClusterSubnet = strings.Join([]string{DefaultKubernetesSubnet, "ace:cab:deca::/8"}, ",")
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != expectedClusterSubnet {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ClusterSubnet did not have the expected configuration, got %s, expected %s",
@@ -1687,11 +1798,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin = "azure"
 	properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet = "10.240.1.0/24,ace:cab:deca::/8"
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6DualStack: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	expectedClusterSubnet = strings.Join([]string{"10.240.1.0/24", "ace:cab:deca::/8"}, ",")
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != expectedClusterSubnet {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ClusterSubnet did not have the expected configuration, got %s, expected %s",
@@ -1704,11 +1818,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.OrchestratorProfile.KubernetesConfig.NetworkPlugin = "azure"
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6DualStack: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	expectedClusterSubnet = strings.Join([]string{DefaultKubernetesSubnet, DefaultKubernetesClusterSubnetIPv6}, ",")
 	if properties.OrchestratorProfile.KubernetesConfig.ClusterSubnet != expectedClusterSubnet {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.ClusterSubnet did not have the expected configuration, got %s, expected %s",
@@ -1720,11 +1837,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties = mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.OrchestratorProfile.KubernetesConfig.LoadBalancerSku = StandardLoadBalancerSku
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.OrchestratorProfile.KubernetesConfig.OutboundRuleIdleTimeoutInMinutes != DefaultOutboundRuleIdleTimeoutInMinutes {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.OutboundRuleIdleTimeoutInMinutes did not have the expected configuration, got %d, expected %d",
 			properties.OrchestratorProfile.KubernetesConfig.OutboundRuleIdleTimeoutInMinutes, DefaultOutboundRuleIdleTimeoutInMinutes)
@@ -1735,11 +1855,14 @@ func TestMasterProfileDefaults(t *testing.T) {
 	properties = mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.FeatureFlags = &FeatureFlags{EnableIPv6Only: true}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.OrchestratorProfile.KubernetesConfig.DNSServiceIP != DefaultKubernetesDNSServiceIPv6 {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.DNSServiceIP did not have the expected configuration, got %s, expected %s",
 			properties.OrchestratorProfile.KubernetesConfig.DNSServiceIP, DefaultKubernetesDNSServiceIPv6)
@@ -1759,11 +1882,14 @@ func TestAgentPoolProfile(t *testing.T) {
 	properties := mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.MasterProfile.Count = 1
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.AgentPoolProfiles[0].ScaleSetPriority != "" {
 		t.Fatalf("AgentPoolProfiles[0].ScaleSetPriority did not have the expected configuration, got %s, expected %s",
 			properties.AgentPoolProfiles[0].ScaleSetPriority, "")
@@ -1773,21 +1899,27 @@ func TestAgentPoolProfile(t *testing.T) {
 			properties.AgentPoolProfiles[0].ScaleSetEvictionPolicy, "")
 	}
 	properties.AgentPoolProfiles[0].ScaleSetPriority = ScaleSetPriorityLow
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.AgentPoolProfiles[0].ScaleSetEvictionPolicy != ScaleSetEvictionPolicyDelete {
 		t.Fatalf("AgentPoolProfile[0].ScaleSetEvictionPolicy did not have the expected configuration, got %s, expected %s",
 			properties.AgentPoolProfiles[0].ScaleSetEvictionPolicy, ScaleSetEvictionPolicyDelete)
 	}
 	properties.AgentPoolProfiles[0].ScaleSetPriority = ScaleSetPrioritySpot
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.AgentPoolProfiles[0].ScaleSetEvictionPolicy != ScaleSetEvictionPolicyDelete {
 		t.Fatalf("AgentPoolProfile[0].ScaleSetEvictionPolicy did not have the expected configuration, got %s, expected %s",
 			properties.AgentPoolProfiles[0].ScaleSetEvictionPolicy, ScaleSetEvictionPolicyDelete)
@@ -1798,11 +1930,14 @@ func TestAgentPoolProfile(t *testing.T) {
 	}
 
 	properties.AgentPoolProfiles[0].SpotMaxPrice = to.Float64Ptr(float64(88))
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if *properties.AgentPoolProfiles[0].SpotMaxPrice != float64(88) {
 		t.Fatalf("AgentPoolProfile[0].SpotMaxPrice did not have the expected value, got %g, expected %g",
 			*properties.AgentPoolProfiles[0].SpotMaxPrice, float64(88))
@@ -1984,11 +2119,14 @@ func TestDistroDefaults(t *testing.T) {
 		default:
 			cs.Location = "westus2"
 		}
-		cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+		_, err := cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 			IsScale:    test.isScale,
 			IsUpgrade:  test.isUpgrade,
 			PkiKeySize: helpers.DefaultPkiKeySize,
 		})
+		if err != nil {
+			t.Error(err)
+		}
 		if cs.Properties.MasterProfile.Distro != test.expectedMasterDistro {
 			t.Fatalf("SetPropertiesDefaults() test case %v did not return right masterProfile Distro configurations %v != %v", test.name, cs.Properties.MasterProfile.Distro, test.expectedMasterDistro)
 		}
@@ -2001,6 +2139,7 @@ func TestDistroDefaults(t *testing.T) {
 }
 
 func TestWindowsProfileDefaults(t *testing.T) {
+	trueVar := true
 
 	var tests = []struct {
 		name                   string // test case name
@@ -2022,7 +2161,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            &trueVar,
 			},
 			false,
 			false,
@@ -2043,7 +2182,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            &trueVar,
 			},
 			false,
 			false,
@@ -2065,7 +2204,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            &trueVar,
 			},
 			false,
 			false,
@@ -2087,7 +2226,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            &trueVar,
 			},
 			false,
 			false,
@@ -2108,7 +2247,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            &trueVar,
 			},
 			false,
 			false,
@@ -2130,7 +2269,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            &trueVar,
 			},
 			false,
 			false,
@@ -2152,7 +2291,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            &trueVar,
 			},
 			false,
 			false,
@@ -2175,7 +2314,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            &trueVar,
 			},
 			false,
 			false,
@@ -2197,7 +2336,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            &trueVar,
 			},
 			false,
 			false,
@@ -2220,7 +2359,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            &trueVar,
 			},
 			false,
 			false,
@@ -2243,7 +2382,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            nil,
 			},
 			false,
 			true,
@@ -2266,7 +2405,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            nil,
 			},
 			false,
 			true,
@@ -2289,7 +2428,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            nil,
 			},
 			false,
 			true,
@@ -2312,7 +2451,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            nil,
 			},
 			false,
 			true,
@@ -2335,7 +2474,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            nil,
 			},
 			false,
 			true,
@@ -2358,7 +2497,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            nil,
 			},
 			false,
 			true,
@@ -2381,7 +2520,7 @@ func TestWindowsProfileDefaults(t *testing.T) {
 				AdminPassword:         "",
 				WindowsImageSourceURL: "",
 				WindowsDockerVersion:  "",
-				SSHEnabled:            false,
+				SSHEnabled:            nil,
 			},
 			false,
 			false,
@@ -2459,11 +2598,14 @@ func TestSetVMSSDefaultsAndZones(t *testing.T) {
 	properties := mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.MasterProfile.AvailabilityProfile = VirtualMachineScaleSets
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.MasterProfile.HasAvailabilityZones() {
 		t.Fatalf("MasterProfile.HasAvailabilityZones did not have the expected return, got %t, expected %t",
 			properties.MasterProfile.HasAvailabilityZones(), false)
@@ -2478,11 +2620,14 @@ func TestSetVMSSDefaultsAndZones(t *testing.T) {
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.MasterProfile.AvailabilityProfile = VirtualMachineScaleSets
 	properties.MasterProfile.AvailabilityZones = []string{"1", "2"}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	singlePlacementGroup := DefaultSinglePlacementGroup
 	if *properties.MasterProfile.SinglePlacementGroup != singlePlacementGroup {
 		t.Fatalf("MasterProfile.SinglePlacementGroup default did not have the expected configuration, got %t, expected %t",
@@ -2506,11 +2651,14 @@ func TestSetVMSSDefaultsAndZones(t *testing.T) {
 	properties = mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.AgentPoolProfiles[0].Count = 4
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.AgentPoolProfiles[0].HasAvailabilityZones() {
 		t.Fatalf("AgentPoolProfiles[0].HasAvailabilityZones did not have the expected return, got %t, expected %t",
 			properties.AgentPoolProfiles[0].HasAvailabilityZones(), false)
@@ -2524,11 +2672,14 @@ func TestSetVMSSDefaultsAndZones(t *testing.T) {
 	properties = mockCS.Properties
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.AgentPoolProfiles[0].Count = 4
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if properties.OrchestratorProfile.KubernetesConfig.LoadBalancerSku != StandardLoadBalancerSku {
 		t.Fatalf("OrchestratorProfile.KubernetesConfig.LoadBalancerSku did not have the expected configuration, got %s, expected %s",
 			properties.OrchestratorProfile.KubernetesConfig.LoadBalancerSku, StandardLoadBalancerSku)
@@ -2545,11 +2696,14 @@ func TestSetVMSSDefaultsAndZones(t *testing.T) {
 	properties.OrchestratorProfile.OrchestratorType = Kubernetes
 	properties.AgentPoolProfiles[0].Count = 4
 	properties.AgentPoolProfiles[0].AvailabilityZones = []string{"1", "2"}
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if !properties.AgentPoolProfiles[0].IsVirtualMachineScaleSets() {
 		t.Fatalf("AgentPoolProfile[0].AvailabilityProfile did not have the expected configuration, got %s, expected %s",
 			properties.AgentPoolProfiles[0].AvailabilityProfile, VirtualMachineScaleSets)
@@ -2574,11 +2728,14 @@ func TestSetVMSSDefaultsAndZones(t *testing.T) {
 	}
 
 	properties.AgentPoolProfiles[0].Count = 110
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if to.Bool(properties.AgentPoolProfiles[0].SinglePlacementGroup) {
 		t.Fatalf("AgentPoolProfile[0].SinglePlacementGroup did not have the expected configuration, got %t, expected %t",
 			*properties.AgentPoolProfiles[0].SinglePlacementGroup, false)
@@ -2994,11 +3151,14 @@ func TestSetCustomCloudProfileDefaults(t *testing.T) {
 	vmDNSSuffix := "contoso.net"
 	mockCSP.CustomCloudProfile.Environment.ResourceManagerVMDNSSuffix = vmDNSSuffix
 	mockCS.Properties.CustomCloudProfile = mockCSP.CustomCloudProfile
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 
 	if AzureCloudSpecEnvMap[AzureStackCloud].EndpointConfig.ResourceManagerVMDNSSuffix != vmDNSSuffix {
 		t.Errorf("setCustomCloudProfileDefaults(): ResourceManagerVMDNSSuffix string in AzureCloudSpecEnvMap[AzureStackCloud] not the expected default value, got %s, expected %s", AzureCloudSpecEnvMap[AzureStackCloud].EndpointConfig.ResourceManagerVMDNSSuffix, vmDNSSuffix)
@@ -3008,11 +3168,14 @@ func TestSetCustomCloudProfileDefaults(t *testing.T) {
 	mockCSDefaultSpec := getMockBaseContainerService("1.11.6")
 	mockCSPDefaultSpec := GetMockPropertiesWithCustomCloudProfile("azurestackcloud", true, true, false)
 	mockCSDefaultSpec.Properties.CustomCloudProfile = mockCSPDefaultSpec.CustomCloudProfile
-	mockCSDefaultSpec.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCSDefaultSpec.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	actualEnv := AzureCloudSpecEnvMap[AzureStackCloud]
 	expectedEnv := AzureCloudSpecEnvMap[AzurePublicCloud]
@@ -3036,11 +3199,14 @@ func TestSetCustomCloudProfileDefaults(t *testing.T) {
 		mockCSPAzureChinaSpec.CustomCloudProfile.DependenciesLocation = DependenciesLocation(key)
 		mockCSAzureChinaSpec.Properties.CustomCloudProfile = mockCSPAzureChinaSpec.CustomCloudProfile
 
-		mockCSAzureChinaSpec.SetPropertiesDefaults(PropertiesDefaultsParams{
+		_, mooncakeErr := mockCSAzureChinaSpec.SetPropertiesDefaults(PropertiesDefaultsParams{
 			IsScale:    false,
 			IsUpgrade:  false,
 			PkiKeySize: helpers.DefaultPkiKeySize,
 		})
+		if mooncakeErr != nil {
+			t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", mooncakeErr)
+		}
 
 		actualEnvAzureChinaSpec := AzureCloudSpecEnvMap[AzureStackCloud]
 		expectedEnvAzureChinaSpec := AzureCloudSpecEnvMap[value]
@@ -3110,6 +3276,7 @@ func TestSetCustomCloudProfileDefaults(t *testing.T) {
 			VnetCNILinuxPluginsDownloadURL:   "VnetCNILinuxPluginsDownloadURL",
 			VnetCNIWindowsPluginsDownloadURL: "VnetCNIWindowsPluginsDownloadURL",
 			ContainerdDownloadURLBase:        "ContainerdDownloadURLBase",
+			CSIProxyDownloadURL:              "CSIProxyDownloadURL",
 		},
 		DCOSSpecConfig: DefaultDCOSSpecConfig,
 		EndpointConfig: AzureEndpointConfig{
@@ -3127,11 +3294,14 @@ func TestSetCustomCloudProfileDefaults(t *testing.T) {
 	}
 	mockCSPCustom.CustomCloudProfile.AzureEnvironmentSpecConfig = &customCloudSpec
 	mockCSCustom.Properties.CustomCloudProfile = mockCSPCustom.CustomCloudProfile
-	mockCSCustom.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCSCustom.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	if diff := cmp.Diff(AzureCloudSpecEnvMap[AzureStackCloud], customCloudSpec); diff != "" {
 		t.Errorf("setCustomCloudProfileDefaults(): did not set AzureStackCloudSpec as default when azureEnvironmentSpecConfig is empty in api model JSON file")
@@ -3164,6 +3334,7 @@ func TestSetCustomCloudProfileDefaults(t *testing.T) {
 			CNIPluginsDownloadURL:          "CNIPluginsDownloadURL",
 			VnetCNILinuxPluginsDownloadURL: "VnetCNILinuxPluginsDownloadURL",
 			ContainerdDownloadURLBase:      "ContainerdDownloadURLBase",
+			CSIProxyDownloadURL:            "CSIProxyDownloadURL",
 		},
 		DCOSSpecConfig: DefaultDCOSSpecConfig,
 		EndpointConfig: AzureEndpointConfig{
@@ -3181,11 +3352,14 @@ func TestSetCustomCloudProfileDefaults(t *testing.T) {
 	}
 	mockCSPCustomP.CustomCloudProfile.AzureEnvironmentSpecConfig = &customCloudSpecP
 	mockCSCustomP.Properties.CustomCloudProfile = mockCSPCustomP.CustomCloudProfile
-	mockCSCustomP.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCSCustomP.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	if mockCSCustomP.Properties.CustomCloudProfile.AzureEnvironmentSpecConfig.DockerSpecConfig.DockerComposeDownloadURL != DefaultDockerSpecConfig.DockerComposeDownloadURL {
 		t.Errorf("setCustomCloudProfileDefaults(): did not set DockerComposeDownloadURL with default Value, got '%s', expected %s", mockCSCustomP.Properties.CustomCloudProfile.AzureEnvironmentSpecConfig.DockerSpecConfig.DockerComposeDownloadURL, DefaultDockerSpecConfig.DockerComposeDownloadURL)
@@ -3205,11 +3379,14 @@ func TestSetCustomCloudProfileDefaults(t *testing.T) {
 	mockCSPAuth.CustomCloudProfile.IdentitySystem = ""
 	mockCSPAuth.CustomCloudProfile.AuthenticationMethod = ""
 	mockCSAuth.Properties.CustomCloudProfile = mockCSPAuth.CustomCloudProfile
-	mockCSAuth.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCSAuth.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Errorf("expected no error from SetPropertiesDefaults, instead got %s", err)
+	}
 
 	if mockCSAuth.Properties.CustomCloudProfile.AuthenticationMethod != ClientSecretAuthMethod {
 		t.Errorf("setCustomCloudProfileDefaults(): AuthenticationMethod string not the expected default value, got %s, expected %s", mockCSAuth.Properties.CustomCloudProfile.AuthenticationMethod, ClientSecretAuthMethod)
@@ -3224,11 +3401,14 @@ func TestSetCustomCloudProfileDefaults(t *testing.T) {
 	mockCSPI.CustomCloudProfile.IdentitySystem = ADFSIdentitySystem
 	mockCSPI.CustomCloudProfile.AuthenticationMethod = ClientCertificateAuthMethod
 	mockCSI.Properties.CustomCloudProfile = mockCSPI.CustomCloudProfile
-	mockCSI.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCSI.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 
 	if mockCSI.Properties.CustomCloudProfile.AuthenticationMethod != ClientCertificateAuthMethod {
 		t.Errorf("setCustomCloudProfileDefaults(): AuthenticationMethod string from customer not the expected default value, got %s, expected %s", mockCSI.Properties.CustomCloudProfile.AuthenticationMethod, ClientCertificateAuthMethod)
@@ -3244,11 +3424,14 @@ func TestCustomCloudLocation(t *testing.T) {
 	mockCS := getMockBaseContainerService("1.11.6")
 	mockCSP := GetMockPropertiesWithCustomCloudProfile("AzureStackCloud", true, true, true)
 	mockCS.Properties = &mockCSP
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	dnsPrefix := "santest"
 	actual := []string{FormatProdFQDNByLocation(dnsPrefix, mockCS.Location, "AzureStackCloud")}
 
@@ -3417,11 +3600,14 @@ func TestSetOrchestratorProfileDefaultsOnAzureStack(t *testing.T) {
 		},
 	)
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if (*mockCS.Properties.OrchestratorProfile.KubernetesConfig.UseInstanceMetadata) != DefaultAzureStackUseInstanceMetadata {
 		t.Fatalf("DefaultAzureStackUseInstanceMetadata did not have the expected value, got %t, expected %t",
 			(*mockCS.Properties.OrchestratorProfile.KubernetesConfig.UseInstanceMetadata), DefaultAzureStackUseInstanceMetadata)
@@ -3449,11 +3635,14 @@ func TestSetMasterProfileDefaultsOnAzureStack(t *testing.T) {
 		},
 	)
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if (*mockCS.Properties.MasterProfile.PlatformFaultDomainCount) != DefaultAzureStackFaultDomainCount {
 		t.Fatalf("PlatformFaultDomainCount did not have the expected value, got %d, expected %d",
 			(*mockCS.Properties.MasterProfile.PlatformFaultDomainCount), DefaultAzureStackFaultDomainCount)
@@ -3476,11 +3665,14 @@ func TestSetMasterProfileDefaultsOnAzureStack(t *testing.T) {
 		},
 	)
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if (*mockCS.Properties.MasterProfile.PlatformFaultDomainCount) != oldFaultDomainCount {
 		t.Fatalf("PlatformFaultDomainCount did not have the expected value, got %d, expected %d",
 			(*mockCS.Properties.MasterProfile.PlatformFaultDomainCount), oldFaultDomainCount)
@@ -3508,11 +3700,14 @@ func TestSetAgentProfileDefaultsOnAzureStack(t *testing.T) {
 		},
 	)
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	for _, pool := range mockCS.Properties.AgentPoolProfiles {
 		if (*pool.PlatformFaultDomainCount) != DefaultAzureStackFaultDomainCount {
 			t.Fatalf("PlatformFaultDomainCount did not have the expected value, got %d, expected %d",
@@ -3549,11 +3744,14 @@ func TestSetAgentProfileDefaultsOnAzureStack(t *testing.T) {
 		},
 	)
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	for _, pool := range mockCS.Properties.AgentPoolProfiles {
 		if (*pool.PlatformFaultDomainCount) != oldFaultDomainCount {
 			t.Fatalf("PlatformFaultDomainCount did not have the expected value, got %d, expected %d",
@@ -3581,11 +3779,14 @@ func TestEtcdDiskSizeOnAzureStack(t *testing.T) {
 		},
 	)
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if mockCS.Properties.OrchestratorProfile.KubernetesConfig.EtcdDiskSizeGB != DefaultEtcdDiskSize {
 		t.Fatalf("EtcdDiskSizeGB did not have the expected size, got %s, expected %s",
 			mockCS.Properties.OrchestratorProfile.KubernetesConfig.EtcdDiskSizeGB, DefaultEtcdDiskSize)
@@ -3609,11 +3810,14 @@ func TestEtcdDiskSizeOnAzureStack(t *testing.T) {
 		},
 	)
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if mockCS.Properties.OrchestratorProfile.KubernetesConfig.EtcdDiskSizeGB != DefaultEtcdDiskSizeGT3Nodes {
 		t.Fatalf("EtcdDiskSizeGB did not have the expected size, got %s, expected %s",
 			mockCS.Properties.OrchestratorProfile.KubernetesConfig.EtcdDiskSizeGB, DefaultEtcdDiskSizeGT3Nodes)
@@ -3638,11 +3842,14 @@ func TestEtcdDiskSizeOnAzureStack(t *testing.T) {
 		},
 	)
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if mockCS.Properties.OrchestratorProfile.KubernetesConfig.EtcdDiskSizeGB != MaxAzureStackManagedDiskSize {
 		t.Fatalf("EtcdDiskSizeGB did not have the expected size, got %s, expected %s",
 			mockCS.Properties.OrchestratorProfile.KubernetesConfig.EtcdDiskSizeGB, MaxAzureStackManagedDiskSize)
@@ -3667,11 +3874,14 @@ func TestEtcdDiskSizeOnAzureStack(t *testing.T) {
 		},
 	)
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if mockCS.Properties.OrchestratorProfile.KubernetesConfig.EtcdDiskSizeGB != MaxAzureStackManagedDiskSize {
 		t.Fatalf("EtcdDiskSizeGB did not have the expected size, got %s, expected %s",
 			mockCS.Properties.OrchestratorProfile.KubernetesConfig.EtcdDiskSizeGB, MaxAzureStackManagedDiskSize)
@@ -3698,11 +3908,14 @@ func TestEtcdDiskSizeOnAzureStack(t *testing.T) {
 		},
 	)
 
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if mockCS.Properties.OrchestratorProfile.KubernetesConfig.EtcdDiskSizeGB != customEtcdDiskSize {
 		t.Fatalf("EtcdDiskSizeGB did not have the expected size, got %s, expected %s",
 			mockCS.Properties.OrchestratorProfile.KubernetesConfig.EtcdDiskSizeGB, customEtcdDiskSize)
@@ -3710,11 +3923,14 @@ func TestEtcdDiskSizeOnAzureStack(t *testing.T) {
 }
 func TestPreserveNodesProperties(t *testing.T) {
 	mockCS := getMockBaseContainerService("1.10.8")
-	mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCS.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	if !to.Bool(mockCS.Properties.AgentPoolProfiles[0].PreserveNodesProperties) {
 		t.Errorf("expected preserveNodesProperties to be %t instead got %t", true, to.Bool(mockCS.Properties.AgentPoolProfiles[0].PreserveNodesProperties))
 	}
@@ -3726,11 +3942,14 @@ func TestUbuntu1804Flags(t *testing.T) {
 	cs.Properties.MasterProfile.Distro = AKSUbuntu1604
 	cs.Properties.AgentPoolProfiles[0].Distro = AKSUbuntu1804
 	cs.Properties.AgentPoolProfiles[0].OSType = Linux
-	cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	km := cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
 	if _, ok := km["--resolv-conf"]; ok {
 		t.Fatalf("got unexpected '--resolv-conf' kubelet config value '%s' with Ubuntu 16.04 ",
@@ -3746,11 +3965,14 @@ func TestUbuntu1804Flags(t *testing.T) {
 	cs.Properties.MasterProfile.Distro = Ubuntu1804
 	cs.Properties.AgentPoolProfiles[0].Distro = Ubuntu
 	cs.Properties.AgentPoolProfiles[0].OSType = Linux
-	cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	km = cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
 	if km["--resolv-conf"] != "/run/systemd/resolve/resolv.conf" {
 		t.Fatalf("got unexpected '--resolv-conf' kubelet config value %s with Ubuntu 18.04, the expected value is %s",
@@ -3766,11 +3988,14 @@ func TestUbuntu1804Flags(t *testing.T) {
 	cs.Properties.MasterProfile.Distro = Ubuntu
 	cs.Properties.AgentPoolProfiles[0].Distro = ""
 	cs.Properties.AgentPoolProfiles[0].OSType = Windows
-	cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 	km = cs.Properties.MasterProfile.KubernetesConfig.KubeletConfig
 	if _, ok := km["--resolv-conf"]; ok {
 		t.Fatalf("got unexpected '--resolv-conf' kubelet config value '%s' with Ubuntu 16.04 ",
@@ -4133,11 +4358,14 @@ func TestDefaultAzureTelemetryPid(t *testing.T) {
 	mockCSDefaultSpec := getMockBaseContainerService("1.11.6")
 	mockCSPDefaultSpec := GetMockPropertiesWithCustomCloudProfile("azurestackcloud", true, true, false)
 	mockCSDefaultSpec.Properties.CustomCloudProfile = mockCSPDefaultSpec.CustomCloudProfile
-	mockCSDefaultSpec.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err := mockCSDefaultSpec.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 
 	actualEnv := AzureCloudSpecEnvMap[AzureStackCloud]
 	expectedEnv := AzureCloudSpecEnvMap[AzurePublicCloud]
@@ -4152,11 +4380,14 @@ func TestDefaultAzureTelemetryPid(t *testing.T) {
 	mockCSScaleSpec := getMockBaseContainerService("1.11.6")
 	mockCSPScaleSpec := GetMockPropertiesWithCustomCloudProfile("azurestackcloud", true, true, false)
 	mockCSScaleSpec.Properties.CustomCloudProfile = mockCSPScaleSpec.CustomCloudProfile
-	mockCSScaleSpec.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCSScaleSpec.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    true,
 		IsUpgrade:  false,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 
 	actualScaleEnv := AzureCloudSpecEnvMap[AzureStackCloud]
 	expectedScaleEnv := AzureCloudSpecEnvMap[AzurePublicCloud]
@@ -4171,11 +4402,14 @@ func TestDefaultAzureTelemetryPid(t *testing.T) {
 	mockCSSUpgradeSpec := getMockBaseContainerService("1.11.6")
 	mockCSPSUpgradeSpec := GetMockPropertiesWithCustomCloudProfile("azurestackcloud", true, true, false)
 	mockCSSUpgradeSpec.Properties.CustomCloudProfile = mockCSPSUpgradeSpec.CustomCloudProfile
-	mockCSSUpgradeSpec.SetPropertiesDefaults(PropertiesDefaultsParams{
+	_, err = mockCSSUpgradeSpec.SetPropertiesDefaults(PropertiesDefaultsParams{
 		IsScale:    false,
 		IsUpgrade:  true,
 		PkiKeySize: helpers.DefaultPkiKeySize,
 	})
+	if err != nil {
+		t.Error(err)
+	}
 
 	actualSUpgradeEnv := AzureCloudSpecEnvMap[AzureStackCloud]
 	expectedSUpgradeEnv := AzureCloudSpecEnvMap[AzurePublicCloud]
@@ -4544,11 +4778,14 @@ func TestImageReference(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			c.cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+			_, err := c.cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 				IsUpgrade:  c.isUpgrade,
 				IsScale:    c.isScale,
 				PkiKeySize: helpers.DefaultPkiKeySize,
 			})
+			if err != nil {
+				t.Error(err)
+			}
 			if c.cs.Properties.MasterProfile.Distro != c.expectedMasterProfile.Distro {
 				t.Errorf("expected %s, but got %s", c.expectedMasterProfile.Distro, c.cs.Properties.MasterProfile.Distro)
 			}
@@ -4736,11 +4973,14 @@ func TestCustomHyperkubeDistro(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			c.cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+			_, err := c.cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 				IsUpgrade:  c.isUpgrade,
 				IsScale:    c.isScale,
 				PkiKeySize: helpers.DefaultPkiKeySize,
 			})
+			if err != nil {
+				t.Error(err)
+			}
 			if c.cs.Properties.MasterProfile.Distro != c.expectedMasterProfile.Distro {
 				t.Errorf("expected %s, but got %s", c.expectedMasterProfile.Distro, c.cs.Properties.MasterProfile.Distro)
 			}
@@ -4953,11 +5193,14 @@ func TestDefaultIPAddressCount(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			c.cs.SetPropertiesDefaults(PropertiesDefaultsParams{
+			_, err := c.cs.SetPropertiesDefaults(PropertiesDefaultsParams{
 				IsScale:    false,
 				IsUpgrade:  true,
 				PkiKeySize: helpers.DefaultPkiKeySize,
 			})
+			if err != nil {
+				t.Error(err)
+			}
 			if c.cs.Properties.MasterProfile.IPAddressCount != c.expectedMaster {
 				t.Errorf("expected %d, but got %d", c.expectedMaster, c.cs.Properties.MasterProfile.IPAddressCount)
 			}
@@ -4966,6 +5209,84 @@ func TestDefaultIPAddressCount(t *testing.T) {
 			}
 			if c.cs.Properties.AgentPoolProfiles[1].IPAddressCount != c.expectedPool1 {
 				t.Errorf("expected %d, but got %d", c.expectedPool1, c.cs.Properties.AgentPoolProfiles[1].IPAddressCount)
+			}
+		})
+	}
+}
+
+func TestSetCSIProxyDefaults(t *testing.T) {
+	cases := []struct {
+		name                      string
+		windowsProfile            *WindowsProfile
+		useCloudControllerManager bool
+		expectedEnableCSIProxy    bool
+		expectedCSIProxyURL       string
+	}{
+		{
+			name: "enabledCSIProxy is nil and useCloudControllerManager is disabled",
+			windowsProfile: &WindowsProfile{
+				EnableCSIProxy: nil,
+				CSIProxyURL:    "",
+			},
+			useCloudControllerManager: false,
+			expectedEnableCSIProxy:    false,
+			expectedCSIProxyURL:       "",
+		},
+		{
+			name: "enabledCSIProxy is nil and useCloudControllerManager is enabled",
+			windowsProfile: &WindowsProfile{
+				EnableCSIProxy: nil,
+				CSIProxyURL:    "",
+			},
+			useCloudControllerManager: true,
+			expectedEnableCSIProxy:    true,
+			expectedCSIProxyURL:       DefaultKubernetesSpecConfig.CSIProxyDownloadURL,
+		},
+		{
+			name: "enabledCSIProxy is nil and CSIProxyURL is defined",
+			windowsProfile: &WindowsProfile{
+				EnableCSIProxy: nil,
+				CSIProxyURL:    "CSIProxyURL",
+			},
+			useCloudControllerManager: true,
+			expectedEnableCSIProxy:    true,
+			expectedCSIProxyURL:       "CSIProxyURL",
+		},
+		{
+			name: "enabledCSIProxy is false",
+			windowsProfile: &WindowsProfile{
+				EnableCSIProxy: to.BoolPtr(false),
+				CSIProxyURL:    "",
+			},
+			useCloudControllerManager: true,
+			expectedEnableCSIProxy:    false,
+			expectedCSIProxyURL:       "",
+		},
+		{
+			name: "enabledCSIProxy is true",
+			windowsProfile: &WindowsProfile{
+				EnableCSIProxy: to.BoolPtr(true),
+				CSIProxyURL:    "",
+			},
+			useCloudControllerManager: true,
+			expectedEnableCSIProxy:    true,
+			expectedCSIProxyURL:       DefaultKubernetesSpecConfig.CSIProxyDownloadURL,
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			cs := getMockBaseContainerService("1.18.0")
+			cs.Properties.OrchestratorProfile.KubernetesConfig.UseCloudControllerManager = to.BoolPtr(c.useCloudControllerManager)
+			cs.Properties.WindowsProfile = c.windowsProfile
+			cs.setCSIProxyDefaults()
+			if to.Bool(cs.Properties.WindowsProfile.EnableCSIProxy) != c.expectedEnableCSIProxy {
+				t.Errorf("expected enableCSIProxy to be %t, but got %t", c.expectedEnableCSIProxy, to.Bool(cs.Properties.WindowsProfile.EnableCSIProxy))
+			}
+			if cs.Properties.WindowsProfile.CSIProxyURL != c.expectedCSIProxyURL {
+				t.Errorf("expected csiProxyURL to be %s, but got %s", DefaultKubernetesSpecConfig.CSIProxyDownloadURL, cs.Properties.WindowsProfile.CSIProxyURL)
 			}
 		})
 	}

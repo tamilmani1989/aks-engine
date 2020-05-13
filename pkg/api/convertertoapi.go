@@ -200,7 +200,9 @@ func convertVLabsWindowsProfile(vlabs *vlabs.WindowsProfile, api *WindowsProfile
 		convertVLabsKeyVaultSecrets(&s, secret)
 		api.Secrets = append(api.Secrets, *secret)
 	}
-	api.SSHEnabled = vlabs.SSHEnabled
+	if vlabs.SSHEnabled != nil {
+		api.SSHEnabled = vlabs.SSHEnabled
+	}
 	api.EnableAutomaticUpdates = vlabs.EnableAutomaticUpdates
 }
 
@@ -339,6 +341,7 @@ func convertVLabsKubernetesConfig(vlabs *vlabs.KubernetesConfig, api *Kubernetes
 	api.PrivateAzureRegistryServer = vlabs.PrivateAzureRegistryServer
 	api.OutboundRuleIdleTimeoutInMinutes = vlabs.OutboundRuleIdleTimeoutInMinutes
 	api.CloudProviderDisableOutboundSNAT = vlabs.CloudProviderDisableOutboundSNAT
+	api.KubeReservedCgroup = vlabs.KubeReservedCgroup
 	convertComponentsToAPI(vlabs, api)
 	convertAddonsToAPI(vlabs, api)
 	convertKubeletConfigToAPI(vlabs, api)
@@ -348,6 +351,7 @@ func convertVLabsKubernetesConfig(vlabs *vlabs.KubernetesConfig, api *Kubernetes
 	convertSchedulerConfigToAPI(vlabs, api)
 	convertPrivateClusterToAPI(vlabs, api)
 	convertPodSecurityPolicyConfigToAPI(vlabs, api)
+	convertContainerRuntimeConfigToAPI(vlabs, api)
 }
 
 func setVlabsKubernetesDefaults(vp *vlabs.Properties, api *OrchestratorProfile) {
@@ -457,6 +461,13 @@ func convertCustomFilesToAPI(v *vlabs.MasterProfile, a *MasterProfile) {
 				Source: (*v.CustomFiles)[i].Source,
 			})
 		}
+	}
+}
+
+func convertContainerRuntimeConfigToAPI(v *vlabs.KubernetesConfig, a *KubernetesConfig) {
+	a.ContainerRuntimeConfig = map[string]string{}
+	for key, val := range v.ContainerRuntimeConfig {
+		a.ContainerRuntimeConfig[key] = val
 	}
 }
 
@@ -583,6 +594,7 @@ func convertVLabsMasterProfile(vlabs *vlabs.MasterProfile, api *MasterProfile) {
 	api.EncryptionAtHost = vlabs.EncryptionAtHost
 	api.AuditDEnabled = vlabs.AuditDEnabled
 	api.ProximityPlacementGroupID = vlabs.ProximityPlacementGroupID
+	api.OSDiskCachingType = vlabs.OSDiskCachingType
 	convertCustomFilesToAPI(vlabs, api)
 	api.SysctlDConfig = map[string]string{}
 	for key, val := range vlabs.SysctlDConfig {
@@ -661,6 +673,8 @@ func convertVLabsAgentPoolProfile(vlabs *vlabs.AgentPoolProfile, api *AgentPoolP
 	for key, val := range vlabs.SysctlDConfig {
 		api.SysctlDConfig[key] = val
 	}
+	api.OSDiskCachingType = vlabs.OSDiskCachingType
+	api.DataDiskCachingType = vlabs.DataDiskCachingType
 }
 
 func convertVLabsKeyVaultSecrets(vlabs *vlabs.KeyVaultSecrets, api *KeyVaultSecrets) {
@@ -813,6 +827,7 @@ func convertAzureEnvironmentSpecConfig(vlabses *vlabs.AzureEnvironmentSpecConfig
 		VnetCNILinuxPluginsDownloadURL:   vlabses.KubernetesSpecConfig.VnetCNILinuxPluginsDownloadURL,
 		VnetCNIWindowsPluginsDownloadURL: vlabses.KubernetesSpecConfig.VnetCNIWindowsPluginsDownloadURL,
 		ContainerdDownloadURLBase:        vlabses.KubernetesSpecConfig.ContainerdDownloadURLBase,
+		CSIProxyDownloadURL:              vlabses.KubernetesSpecConfig.CSIProxyDownloadURL,
 	}
 	api.OSImageConfig = map[Distro]AzureOSImageConfig{}
 	for k, v := range vlabses.OSImageConfig {
